@@ -8,6 +8,7 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { FcGoogle } from 'react-icons/fc';
 import { FaApple } from 'react-icons/fa';
 import { FaGithub } from 'react-icons/fa';
+import { FaUserSecret } from 'react-icons/fa';
 import { IoArrowBack } from 'react-icons/io5';
 
 import { useAuth } from '@/context/AuthContext';
@@ -57,6 +58,27 @@ const ProviderLogin: React.FC<ProviderLoginProp> = ({ provider, handleSignIn, Ic
     >
       <Icon />
       <span className='text-base-content/75 px-2 text-sm'>{label}</span>
+    </button>
+  );
+};
+
+interface AnonymousLoginProp {
+  handleSignIn: () => void;
+  Icon: React.ElementType;
+  label: string;
+}
+
+const AnonymousLogin: React.FC<AnonymousLoginProp> = ({handleSignIn, Icon, label }) => {
+  return (
+    <button
+      onClick={() => handleSignIn()}
+      className={clsx(
+        'mb-2 flex w-full items-center justify-center rounded border-2 p-2.5',
+        'bg-white border-green-500 shadow-sm transition hover:bg-gray-50',
+      )}
+    >
+      <Icon />
+      <span className='text-black px-2 text-sm'>{label}</span>
     </button>
   );
 };
@@ -153,6 +175,21 @@ export default function AuthPage() {
       await openUrl(data.url);
     }
   };
+
+  const signInWithPublicAccount = async () => {
+    supabase.auth.signOut();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: 'public@readest.com',
+      password: '12345678',
+    });
+
+    if (error) {
+      console.error('Public account login failed', error);
+    } else {
+      console.log('Public account login successful', data);
+    }
+  };
+
 
   const handleOAuthUrl = async (url: string) => {
     console.log('Handle OAuth URL:', url);
@@ -386,6 +423,11 @@ export default function AuthPage() {
       >
         <IoArrowBack className='text-base-content' />
       </button>
+      <AnonymousLogin
+          handleSignIn={signInWithPublicAccount}
+          Icon={FaUserSecret}
+          label={'Sign in with Nothing'}
+      />
       <Auth
         supabaseClient={supabase}
         appearance={{ theme: ThemeSupa }}

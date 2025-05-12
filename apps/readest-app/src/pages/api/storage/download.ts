@@ -29,7 +29,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(403).json({ error: 'Not authenticated' });
     }
 
-    const { fileKey } = req.query;
+    const { fileKey} = req.query;
 
     if (!fileKey || typeof fileKey !== 'string') {
       return res.status(400).json({ error: 'Missing or invalid fileKey' });

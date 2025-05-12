@@ -34,7 +34,7 @@ export const BOOK_UNGROUPED_ID = '';
 
 export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   keepLogin: false,
-  autoUpload: true,
+  autoUpload: false,
   alwaysOnTop: false,
   autoCheckUpdates: true,
   screenWakeLock: false,
