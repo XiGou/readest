@@ -1,39 +1,29 @@
 import clsx from 'clsx';
 import React, { useEffect, useRef, useState } from 'react';
-import i18n from 'i18next';
 import { IoPhoneLandscapeOutline, IoPhonePortraitOutline } from 'react-icons/io5';
 import { MdOutlineScreenRotation } from 'react-icons/md';
 import { useEnv } from '@/context/EnvContext';
 import { useReaderStore } from '@/store/readerStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTranslation } from '@/hooks/useTranslation';
-import { useDeviceControlStore } from '@/store/deviceStore';
 import { getStyles } from '@/utils/style';
 import { lockScreenOrientation } from '@/utils/bridge';
 import { saveViewSettings } from '../../utils/viewSettingsHelper';
-import { TRANSLATED_LANGS } from '@/services/constants';
 import cssbeautify from 'cssbeautify';
 import cssValidate from '@/utils/css';
-import DropDown from './DropDown';
 
 const MiscPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
   const _ = useTranslation();
   const { envConfig, appService } = useEnv();
   const { settings, isFontLayoutSettingsGlobal, setSettings } = useSettingsStore();
-  const { acquireVolumeKeyInterception, releaseVolumeKeyInterception } = useDeviceControlStore();
   const { getView, getViewSettings, setViewSettings } = useReaderStore();
   const viewSettings = getViewSettings(bookKey)!;
 
-  const [animated, setAnimated] = useState(viewSettings.animated!);
-  const [isDisableClick, setIsDisableClick] = useState(viewSettings.disableClick!);
-  const [swapClickArea, setSwapClickArea] = useState(viewSettings.swapClickArea!);
-  const [volumeKeysToFlip, setVolumeKeysToFlip] = useState(viewSettings.volumeKeysToFlip!);
-  const [isContinuousScroll, setIsContinuousScroll] = useState(viewSettings.continuousScroll!);
   const [draftStylesheet, setDraftStylesheet] = useState(viewSettings.userStylesheet!);
   const [draftStylesheetSaved, setDraftStylesheetSaved] = useState(true);
   const [screenOrientation, setScreenOrientation] = useState(viewSettings.screenOrientation!);
-  const [error, setError] = useState<string | null>(null);
 
+  const [error, setError] = useState<string | null>(null);
   const [inputFocusInAndroid, setInputFocusInAndroid] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -103,67 +93,6 @@ const MiscPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
     }
   };
 
-  const getCurrentUILangOption = () => {
-    const uiLanguage = viewSettings.uiLanguage;
-    return {
-      option: uiLanguage,
-      label:
-        uiLanguage === ''
-          ? _('Auto')
-          : TRANSLATED_LANGS[uiLanguage as keyof typeof TRANSLATED_LANGS],
-    };
-  };
-
-  const getUILangOptions = () => {
-    const langs = TRANSLATED_LANGS as Record<string, string>;
-    const options = Object.entries(langs).map(([option, label]) => ({ option, label }));
-    options.sort((a, b) => a.label.localeCompare(b.label));
-    options.unshift({ option: '', label: _('Auto') });
-    return options;
-  };
-
-  const handleSelectUILang = (option: string) => {
-    saveViewSettings(envConfig, bookKey, 'uiLanguage', option, false, false);
-    i18n.changeLanguage(option ? option : navigator.language);
-  };
-
-  useEffect(() => {
-    saveViewSettings(envConfig, bookKey, 'animated', animated, false, false);
-    if (animated) {
-      getView(bookKey)?.renderer.setAttribute('animated', '');
-    } else {
-      getView(bookKey)?.renderer.removeAttribute('animated');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [animated]);
-
-  useEffect(() => {
-    saveViewSettings(envConfig, bookKey, 'disableClick', isDisableClick, false, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDisableClick]);
-
-  useEffect(() => {
-    saveViewSettings(envConfig, bookKey, 'swapClickArea', swapClickArea, false, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [swapClickArea]);
-
-  useEffect(() => {
-    saveViewSettings(envConfig, bookKey, 'volumeKeysToFlip', volumeKeysToFlip, false, false);
-    if (appService?.isMobileApp) {
-      if (volumeKeysToFlip) {
-        acquireVolumeKeyInterception();
-      } else {
-        releaseVolumeKeyInterception();
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [volumeKeysToFlip]);
-
-  useEffect(() => {
-    saveViewSettings(envConfig, bookKey, 'continuousScroll', isContinuousScroll, false, false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isContinuousScroll]);
-
   useEffect(() => {
     saveViewSettings(envConfig, bookKey, 'screenOrientation', screenOrientation, false, false);
     if (appService?.isMobileApp) {
@@ -179,39 +108,6 @@ const MiscPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
         inputFocusInAndroid && 'h-[50%] overflow-y-auto pb-[200px]',
       )}
     >
-      <div className='w-full'>
-        <h2 className='mb-2 font-medium'>{_('Language')}</h2>
-        <div className='card border-base-200 bg-base-100 border shadow'>
-          <div className='divide-base-200 divide-y'>
-            <div className='config-item'>
-              <span className=''>{_('Language')}</span>
-              <DropDown
-                selected={getCurrentUILangOption()}
-                options={getUILangOptions()}
-                onSelect={handleSelectUILang}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className='w-full'>
-        <h2 className='mb-2 font-medium'>{_('Animation')}</h2>
-        <div className='card border-base-200 bg-base-100 border shadow'>
-          <div className='divide-base-200 divide-y'>
-            <div className='config-item'>
-              <span className=''>{_('Paging Animation')}</span>
-              <input
-                type='checkbox'
-                className='toggle'
-                checked={animated}
-                onChange={() => setAnimated(!animated)}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
       {appService?.isMobileApp && (
         <div className='w-full'>
           <h2 className='mb-2 font-medium'>{_('Screen')}</h2>
@@ -252,53 +148,6 @@ const MiscPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
           </div>
         </div>
       )}
-
-      <div className='w-full'>
-        <h2 className='mb-2 font-medium'>{_('Behavior')}</h2>
-        <div className='card border-base-200 bg-base-100 border shadow'>
-          <div className='divide-base-200 divide-y'>
-            <div className='config-item'>
-              <span className=''>{_('Continuous Scroll')}</span>
-              <input
-                type='checkbox'
-                className='toggle'
-                checked={isContinuousScroll}
-                onChange={() => setIsContinuousScroll(!isContinuousScroll)}
-              />
-            </div>
-            {appService?.isMobileApp && (
-              <div className='config-item'>
-                <span className=''>{_('Volume Keys for Page Flip')}</span>
-                <input
-                  type='checkbox'
-                  className='toggle'
-                  checked={volumeKeysToFlip}
-                  onChange={() => setVolumeKeysToFlip(!volumeKeysToFlip)}
-                />
-              </div>
-            )}
-            <div className='config-item'>
-              <span className=''>{_('Clicks for Page Flip')}</span>
-              <input
-                type='checkbox'
-                className='toggle'
-                checked={!isDisableClick}
-                onChange={() => setIsDisableClick(!isDisableClick)}
-              />
-            </div>
-            <div className='config-item'>
-              <span className=''>{_('Swap Clicks Area')}</span>
-              <input
-                type='checkbox'
-                className='toggle'
-                checked={swapClickArea}
-                disabled={isDisableClick}
-                onChange={() => setSwapClickArea(!swapClickArea)}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
 
       <div className='w-full'>
         <h2 className='mb-2 font-medium'>{_('Custom CSS')}</h2>

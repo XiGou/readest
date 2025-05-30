@@ -14,6 +14,7 @@ import SidebarToggler from './SidebarToggler';
 import BookmarkToggler from './BookmarkToggler';
 import NotebookToggler from './NotebookToggler';
 import SettingsToggler from './SettingsToggler';
+import TranslationToggler from './TranslationToggler';
 import ViewMenu from './ViewMenu';
 
 interface HeaderBarProps {
@@ -119,6 +120,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
             <SidebarToggler bookKey={bookKey} />
           </div>
           <BookmarkToggler bookKey={bookKey} />
+          <TranslationToggler bookKey={bookKey} />
         </div>
 
         <div className='header-title z-15 bg-base-100 pointer-events-none absolute inset-0 hidden items-center justify-center sm:flex'>

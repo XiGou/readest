@@ -1,5 +1,6 @@
 import { FoliateView, TTSGranularity } from '@/types/view';
 import { TTSClient, TTSMessageCode, TTSVoice } from './TTSClient';
+import { parseSSMLMarks } from '@/utils/ssml';
 import { WebSpeechClient } from './WebSpeechClient';
 import { EdgeTTSClient } from './EdgeTTSClient';
 import { TTSUtils } from './TTSUtils';
@@ -81,9 +82,12 @@ export class TTSController extends EventTarget {
   #preprocessSSML(ssml?: string) {
     if (!ssml) return;
     ssml = ssml
+      .replace(/<emphasis[^>]*>([^<]+)<\/emphasis>/g, '$1')
       .replace(/[–—]/g, ',')
-      .replace(/\.{3,}/g, '<break time="400ms"/>')
-      .replace(/·/g, '<break time="200ms"/>');
+      .replace('<break/>', ' ')
+      .replace(/\.{3,}/g, '   ')
+      .replace(/……/g, '  ')
+      .replace(/·/g, ' ');
 
     return ssml;
   }
@@ -104,7 +108,7 @@ export class TTSController extends EventTarget {
           // FIXME: in case we are at the end of the book, need a better way to handle this
           if (this.#nossmlCnt < 10 && this.state === 'playing') {
             resolve();
-            await this.view.next(1);
+            await this.view.next();
             await this.forward();
           }
           return;
@@ -112,6 +116,11 @@ export class TTSController extends EventTarget {
           this.#nossmlCnt = 0;
         }
 
+        const { plainText, marks } = parseSSMLMarks(ssml);
+        if (!plainText || marks.length === 0) {
+          resolve();
+          return await this.forward();
+        }
         const iter = await this.ttsClient.speak(ssml, signal);
         let lastCode: TTSMessageCode = 'boundary';
         for await (const { code, mark } of iter) {
@@ -239,7 +248,7 @@ export class TTSController extends EventTarget {
     return [...ttsEdgeVoices, ...ttsWebVoices];
   }
 
-  async setVoice(voiceId: string) {
+  async setVoice(voiceId: string, lang: string) {
     this.state = 'setvoice-paused';
     const useEdgeTTS = !!this.ttsEdgeVoices.find(
       (voice) => (voiceId === '' || voice.id === voiceId) && !voice.disabled,
@@ -247,17 +256,21 @@ export class TTSController extends EventTarget {
     if (useEdgeTTS) {
       this.ttsClient = this.ttsEdgeClient;
       await this.ttsClient.setRate(this.ttsRate);
-      TTSUtils.setPreferredVoice('edge-tts', this.ttsLang, voiceId);
+      TTSUtils.setPreferredVoice('edge-tts', lang, voiceId);
     } else {
       this.ttsClient = this.ttsWebClient;
       await this.ttsClient.setRate(this.ttsRate);
-      TTSUtils.setPreferredVoice('web-speech', this.ttsLang, voiceId);
+      TTSUtils.setPreferredVoice('web-speech', lang, voiceId);
     }
     await this.ttsClient.setVoice(voiceId);
   }
 
   getVoiceId() {
     return this.ttsClient.getVoiceId();
+  }
+
+  getSpeakingLang() {
+    return this.ttsClient.getSpeakingLang();
   }
 
   error(e: unknown) {

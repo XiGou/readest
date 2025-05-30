@@ -29,7 +29,7 @@ const getFontStyles = (
   overrideFont: boolean,
   themeCode: ThemeCode,
 ) => {
-  const { fg, primary } = themeCode;
+  const { fg, primary, isDarkMode } = themeCode;
   const lastSerifFonts = ['Georgia', 'Times New Roman'];
   const serifFonts = [
     serif,
@@ -86,15 +86,9 @@ const getFontStyles = (
     body * {
       ${overrideFont ? 'font-family: revert !important;' : ''}
     }
-    a:any-link, a:any-link * {
-      ${overrideFont ? `color: ${primary};` : ''}
+    a:any-link {
+      ${overrideFont ? `color: ${primary};` : isDarkMode ? `color: lightblue;` : ''}
       text-decoration: none;
-    }
-    /* https://github.com/whatwg/html/issues/5426 */
-    @media (prefers-color-scheme: dark) {
-      a:any-link, a:any-link * {
-        ${overrideFont ? `color: ${primary};` : `color: lightblue;`}
-      }
     }
     /* override inline hardcoded text color */
     *[style*="color: rgb(0,0,0)"], *[style*="color: rgb(0, 0, 0)"],
@@ -188,6 +182,7 @@ const getLayoutStyles = (
   zoomLevel: number,
   writingMode: string,
   vertical: boolean,
+  invertImgColorInDark: boolean,
   themeCode: ThemeCode,
 ) => {
   const { bg, fg, primary, isDarkMode } = themeCode;
@@ -226,12 +221,9 @@ const getLayoutStyles = (
     text-align: var(--default-text-align);
     max-height: unset;
   }
-  html, body {
+  html {
     background-color: var(--theme-bg-color, transparent);
     background: var(--background-set, none);
-  }
-  body.pbg, body *:not(a):not(#b1):not(#b1 *):not(#b2):not(#b2 *):not(img):not(.bg):not(.bg *):not(.vol):not(.vol *):not(.background):not(.background *) {
-    ${isDarkMode ? `background-color: ${bg} !important;` : ''}
   }
   body {
     overflow: unset;
@@ -247,7 +239,7 @@ const getLayoutStyles = (
     word-spacing: ${wordSpacing}px ${overrideLayout ? '!important' : ''};
     letter-spacing: ${letterSpacing}px ${overrideLayout ? '!important' : ''};
     text-indent: ${vertical ? textIndent * 1.2 : textIndent}em ${overrideLayout ? '!important' : ''};
-    text-align: ${justify ? 'justify' : 'inherit'} ${overrideLayout ? '!important' : ''};
+    text-align: ${justify ? 'justify' : ''} ${overrideLayout ? '!important' : ''};
     -webkit-hyphens: ${hyphenate ? 'auto' : 'manual'};
     hyphens: ${hyphenate ? 'auto' : 'manual'};
     -webkit-hyphenate-limit-before: 3;
@@ -255,6 +247,9 @@ const getLayoutStyles = (
     -webkit-hyphenate-limit-lines: 2;
     hanging-punctuation: allow-end last;
     widows: 2;
+  }
+  p:has(> img:only-child), p:has(> span:only-child > img:only-child) {
+    text-indent: unset !important;
   }
   p, div {
     ${vertical ? `margin-left: ${paragraphMargin}em ${overrideLayout ? '!important' : ''};` : ''}
@@ -276,6 +271,9 @@ const getLayoutStyles = (
   }
 
   /* Now begins really dirty hacks to fix some badly designed epubs */
+  body.pbg {
+    ${isDarkMode ? `background-color: ${bg} !important;` : ''}
+  }
   img.pi {
     ${vertical ? 'transform: rotate(90deg);' : ''}
     ${vertical ? 'transform-origin: center;' : ''}
@@ -293,14 +291,24 @@ const getLayoutStyles = (
     color: unset;
   }
 
+  img {
+    ${isDarkMode && invertImgColorInDark ? 'filter: invert(100%);' : ''}
+  }
   /* inline images without dimension */
-  p img, span img, sup img, a img {
+  p img, span img, sup img {
     height: 1em;
+    mix-blend-mode: ${isDarkMode ? 'screen' : 'multiply'};
+  }
+  p:has(> img:only-child) img, span:has(> img:only-child) img {
+    height: auto;
+  }
+  p:has(img), span:has(img) {
+    background-color: ${bg};
   }
 
   /* hardcoded inline font size */
-  p[style*="font-size"], span[style*="font-size"] {
-    font-size: unset !important;
+  [style*="font-size: 16px"], [style*="font-size:16px"] {
+    font-size: 1rem !important;
   }
 
   /* workaround for some badly designed epubs */
@@ -309,16 +317,22 @@ const getLayoutStyles = (
   div.center *, p.center * { text-align: center; }
   div.justify *, p.justify * { text-align: justify; }
 
+  .nonindent, .noindent {
+    text-indent: unset !important;
+  }
+
   /* for the Gutenberg eBooks */
   #pg-header * {
     color: inherit !important;
   }
-  .x-ebookmaker-cover {
+  .x-ebookmaker, .x-ebookmaker-cover, .x-ebookmaker-coverpage {
     background-color: unset !important;
   }
 
-  .chapterHeader {
+  /* for the Feedbooks eBooks */
+  .chapterHeader, .chapterHeader * {
     border-color: unset;
+    background-color: ${bg} !important;
   }
 `;
   return layoutStyle;
@@ -346,6 +360,16 @@ export const getFootnoteStyles = () => `
   p, li, blockquote, dd {
     margin: unset !important;
     text-indent: unset !important;
+  }
+`;
+
+const getTranslationStyles = () => `
+  .translation-block-wrapper {
+    display: block !important;
+    margin: 0.5em 0 !important;
+  }
+  .translation-target.hidden {
+    display: none !important;
   }
 `;
 
@@ -410,6 +434,7 @@ export const getStyles = (viewSettings: ViewSettings, themeCode?: ThemeCode) => 
     viewSettings.zoomLevel! / 100.0,
     viewSettings.writingMode!,
     viewSettings.vertical!,
+    viewSettings.invertImgColorInDark!,
     themeCode,
   );
   // scale the font size on-the-fly so that we can sync the same font size on different devices
@@ -427,8 +452,9 @@ export const getStyles = (viewSettings: ViewSettings, themeCode?: ThemeCode) => 
     viewSettings.overrideFont!,
     themeCode,
   );
+  const translationStyles = getTranslationStyles();
   const userStylesheet = viewSettings.userStylesheet!;
-  return `${layoutStyles}\n${fontStyles}\n${userStylesheet}`;
+  return `${layoutStyles}\n${fontStyles}\n${translationStyles}\n${userStylesheet}`;
 };
 
 export const mountAdditionalFonts = (document: Document) => {
@@ -465,15 +491,16 @@ export const transformStylesheet = (
   const h = height - viewSettings.marginPx * 2;
   const ruleRegex = /([^{]+)({[^}]+})/g;
   css = css.replace(ruleRegex, (match, selector, block) => {
-    const hasTextAlignCenter =
-      /text-align\s*:\s*center\s*;/.test(block) || /text-align\s*:\s*center\s*$/.test(block);
-    const hasTextIndentZero =
-      /text-indent\s*:\s*0\s*;/.test(block) || /text-indent\s*:\s*0\s*$/.test(block);
+    const hasTextAlignCenter = /text-align\s*:\s*center\s*[;$]/.test(block);
+    const hasTextIndentZero = /text-indent\s*:\s*0(?:\.0+)?(?:px|em|rem|%)?\s*[;$]/.test(block);
 
     if (hasTextAlignCenter) {
       block = block.replace(/(text-align\s*:\s*center)(\s*;|\s*$)/g, '$1 !important$2');
       if (hasTextIndentZero) {
-        block = block.replace(/(text-indent\s*:\s*0)(\s*;|\s*$)/g, '$1 !important$2');
+        block = block.replace(
+          /(text-indent\s*:\s*0(?:\.0+)?(?:px|em|rem|%)?)(\s*;|\s*$)/g,
+          '$1 !important$2',
+        );
       }
       return selector + block;
     }
@@ -500,13 +527,9 @@ export const transformStylesheet = (
       return `font-size: ${rem}rem`;
     })
     .replace(/(\d*\.?\d+)vw/gi, (_, d) => (parseFloat(d) * w) / 100 + 'px')
-    .replace(/(\d*\.?\d+)vh/gi, (_, d) => (parseFloat(d) * h) / 100 + 'px');
-
-  if (viewSettings.overrideFont) {
-    css = css
-      .replace(/[\s;]color\s*:\s*#000000/gi, 'color: var(--theme-fg-color)')
-      .replace(/[\s;]color\s*:\s*#000/gi, 'color: var(--theme-fg-color)')
-      .replace(/[\s;]color\s*:\s*rgb\(0,\s*0,\s*0\)/gi, 'color: var(--theme-fg-color)');
-  }
+    .replace(/(\d*\.?\d+)vh/gi, (_, d) => (parseFloat(d) * h) / 100 + 'px')
+    .replace(/[\s;]color\s*:\s*#000000/gi, 'color: var(--theme-fg-color)')
+    .replace(/[\s;]color\s*:\s*#000/gi, 'color: var(--theme-fg-color)')
+    .replace(/[\s;]color\s*:\s*rgb\(0,\s*0,\s*0\)/gi, 'color: var(--theme-fg-color)');
   return css;
 };

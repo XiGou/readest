@@ -11,6 +11,7 @@ export interface ReadSettings {
   notebookWidth: string;
   isNotebookPinned: boolean;
   autohideCursor: boolean;
+  translationProvider: string;
   translateTargetLang: string;
 
   highlightStyle: HighlightStyle;
@@ -30,6 +31,7 @@ export interface SystemSettings {
   openLastBooks: boolean;
   lastOpenBooks: string[];
   autoImportBooksOnOpen: boolean;
+  telemetryEnabled: boolean;
   libraryViewMode: LibraryViewModeType;
   librarySortBy: LibrarySortByType;
   librarySortAscending: boolean;

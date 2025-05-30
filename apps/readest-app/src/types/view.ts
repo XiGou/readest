@@ -10,8 +10,8 @@ export interface FoliateView extends HTMLElement {
   init: (options: { lastLocation: string }) => void;
   goTo: (href: string) => void;
   goToFraction: (fraction: number) => void;
-  prev: (distance: number) => void;
-  next: (distance: number) => void;
+  prev: (distance?: number) => void;
+  next: (distance?: number) => void;
   goLeft: () => void;
   goRight: () => void;
   getCFI: (index: number, range: Range) => string;
@@ -45,6 +45,8 @@ export interface FoliateView extends HTMLElement {
     removeAttribute: (name: string) => void;
     next: () => Promise<void>;
     prev: () => Promise<void>;
+    nextSection?: () => Promise<void>;
+    prevSection?: () => Promise<void>;
     goTo?: (params: { index: number; anchor: number }) => void;
     setStyles?: (css: string) => void;
     getContents: () => { doc: Document; index?: number }[];

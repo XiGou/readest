@@ -40,7 +40,6 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
   const [maxBlockSize, setMaxBlockSize] = useState(viewSettings.maxBlockSize!);
   const [writingMode, setWritingMode] = useState(viewSettings.writingMode!);
   const [overrideLayout, setOverrideLayout] = useState(viewSettings.overrideLayout!);
-  const [isScrolledMode, setScrolledMode] = useState(viewSettings.scrolled!);
   const [doubleBorder, setDoubleBorder] = useState(viewSettings.doubleBorder!);
   const [borderColor, setBorderColor] = useState(viewSettings.borderColor!);
   const [showHeader, setShowHeader] = useState(viewSettings.showHeader!);
@@ -163,21 +162,10 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
   }, [writingMode]);
 
   useEffect(() => {
+    if (overrideLayout === viewSettings.overrideLayout) return;
     saveViewSettings(envConfig, bookKey, 'overrideLayout', overrideLayout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overrideLayout]);
-
-  useEffect(() => {
-    if (isScrolledMode === viewSettings.scrolled) return;
-    saveViewSettings(envConfig, bookKey, 'scrolled', isScrolledMode);
-    getView(bookKey)?.renderer.setAttribute('flow', isScrolledMode ? 'scrolled' : 'paginated');
-    getView(bookKey)?.renderer.setAttribute(
-      'max-inline-size',
-      `${getMaxInlineSize(viewSettings)}px`,
-    );
-    getView(bookKey)?.renderer.setStyles?.(getStyles(viewSettings!));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isScrolledMode]);
 
   useEffect(() => {
     if (doubleBorder === viewSettings.doubleBorder) return;
@@ -259,58 +247,53 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
 
   return (
     <div className='my-4 w-full space-y-6'>
-      <div className='w-full'>
-        <div className='flex items-center justify-between'>
-          <h2 className='font-medium'>{_('Scrolled Mode')}</h2>
-          <input
-            type='checkbox'
-            className='toggle'
-            checked={isScrolledMode}
-            onChange={() => setScrolledMode(!isScrolledMode)}
-          />
-        </div>
+      <div className='flex items-center justify-between'>
+        <h2 className=''>{_('Override Book Layout')}</h2>
+        <input
+          type='checkbox'
+          className='toggle'
+          checked={overrideLayout}
+          onChange={() => setOverrideLayout(!overrideLayout)}
+        />
       </div>
-
       {mightBeRTLBook && (
-        <div className='w-full'>
-          <div className='flex items-center justify-between'>
-            <h2 className='font-medium'>{_('Writing Mode')}</h2>
-            <div className='flex gap-4'>
-              <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('Default')}>
-                <button
-                  className={`btn btn-ghost btn-circle btn-sm ${writingMode === 'auto' ? 'btn-active bg-base-300' : ''}`}
-                  onClick={() => setWritingMode('auto')}
-                >
-                  <MdOutlineAutoMode />
-                </button>
-              </div>
+        <div className='flex items-center justify-between'>
+          <h2 className='font-medium'>{_('Writing Mode')}</h2>
+          <div className='flex gap-4'>
+            <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('Default')}>
+              <button
+                className={`btn btn-ghost btn-circle btn-sm ${writingMode === 'auto' ? 'btn-active bg-base-300' : ''}`}
+                onClick={() => setWritingMode('auto')}
+              >
+                <MdOutlineAutoMode />
+              </button>
+            </div>
 
-              <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('Horizontal Direction')}>
-                <button
-                  className={`btn btn-ghost btn-circle btn-sm ${writingMode === 'horizontal-tb' ? 'btn-active bg-base-300' : ''}`}
-                  onClick={() => setWritingMode('horizontal-tb')}
-                >
-                  <MdOutlineTextRotationNone />
-                </button>
-              </div>
+            <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('Horizontal Direction')}>
+              <button
+                className={`btn btn-ghost btn-circle btn-sm ${writingMode === 'horizontal-tb' ? 'btn-active bg-base-300' : ''}`}
+                onClick={() => setWritingMode('horizontal-tb')}
+              >
+                <MdOutlineTextRotationNone />
+              </button>
+            </div>
 
-              <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('Vertical Direction')}>
-                <button
-                  className={`btn btn-ghost btn-circle btn-sm ${writingMode === 'vertical-rl' ? 'btn-active bg-base-300' : ''}`}
-                  onClick={() => setWritingMode('vertical-rl')}
-                >
-                  <MdTextRotateVertical />
-                </button>
-              </div>
+            <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('Vertical Direction')}>
+              <button
+                className={`btn btn-ghost btn-circle btn-sm ${writingMode === 'vertical-rl' ? 'btn-active bg-base-300' : ''}`}
+                onClick={() => setWritingMode('vertical-rl')}
+              >
+                <MdTextRotateVertical />
+              </button>
+            </div>
 
-              <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('RTL Direction')}>
-                <button
-                  className={`btn btn-ghost btn-circle btn-sm ${writingMode === 'horizontal-rl' ? 'btn-active bg-base-300' : ''}`}
-                  onClick={() => setWritingMode('horizontal-rl')}
-                >
-                  <TbTextDirectionRtl />
-                </button>
-              </div>
+            <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('RTL Direction')}>
+              <button
+                className={`btn btn-ghost btn-circle btn-sm ${writingMode === 'horizontal-rl' ? 'btn-active bg-base-300' : ''}`}
+                onClick={() => setWritingMode('horizontal-rl')}
+              >
+                <TbTextDirectionRtl />
+              </button>
             </div>
           </div>
         </div>
@@ -412,15 +395,6 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
                 className='toggle'
                 checked={hyphenation}
                 onChange={() => setHyphenation(!hyphenation)}
-              />
-            </div>
-            <div className='config-item'>
-              <span className=''>{_('Override Book Layout')}</span>
-              <input
-                type='checkbox'
-                className='toggle'
-                checked={overrideLayout}
-                onChange={() => setOverrideLayout(!overrideLayout)}
               />
             </div>
           </div>

@@ -87,6 +87,7 @@ export interface BookLayout {
   showHeader: boolean;
   showFooter: boolean;
   showBarsOnScroll: boolean;
+  scrollingOverlap: number;
 }
 
 export interface BookStyle {
@@ -98,7 +99,7 @@ export interface BookStyle {
   textIndent: number;
   fullJustification: boolean;
   hyphenation: boolean;
-  invert: boolean;
+  invertImgColorInDark: boolean;
   theme: string;
   overrideFont: boolean;
   overrideLayout: boolean;
@@ -126,6 +127,12 @@ export interface TTSConfig {
   ttsVoice: string;
 }
 
+export interface TranslatorConfig {
+  translationEnabled: boolean;
+  translationProvider: string;
+  translateTargetLang: string;
+}
+
 export interface ScreenConfig {
   screenOrientation: 'auto' | 'portrait' | 'landscape';
 }
@@ -136,6 +143,7 @@ export interface ViewSettings
     BookFont,
     ViewConfig,
     TTSConfig,
+    TranslatorConfig,
     ScreenConfig {}
 
 export interface BookProgress {

@@ -5,9 +5,10 @@ import { useEnv } from '@/context/EnvContext';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { RiFontSize } from 'react-icons/ri';
-import { RiDashboardLine } from 'react-icons/ri';
+import { RiDashboardLine, RiTranslate } from 'react-icons/ri';
 import { VscSymbolColor } from 'react-icons/vsc';
 import { PiDotsThreeVerticalBold } from 'react-icons/pi';
+import { LiaHandPointerSolid } from 'react-icons/lia';
 import { IoAccessibilityOutline } from 'react-icons/io5';
 import { MdArrowBackIosNew, MdArrowForwardIos } from 'react-icons/md';
 import { getDirFromUILanguage } from '@/utils/rtl';
@@ -17,9 +18,11 @@ import ColorPanel from './ColorPanel';
 import Dropdown from '@/components/Dropdown';
 import Dialog from '@/components/Dialog';
 import DialogMenu from './DialogMenu';
+import ControlPanel from './ControlPanel';
+import LangPanel from './LangPanel';
 import MiscPanel from './MiscPanel';
 
-type SettingsPanelType = 'Font' | 'Layout' | 'Color' | 'Misc';
+type SettingsPanelType = 'Font' | 'Layout' | 'Color' | 'Control' | 'Language' | 'Custom';
 
 type TabConfig = {
   tab: SettingsPanelType;
@@ -32,10 +35,7 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
   const { appService } = useEnv();
   const [isRtl] = useState(() => getDirFromUILanguage() === 'rtl');
   const tabsRef = useRef<HTMLDivElement | null>(null);
-  const [showTabLabels, setShowTabLabels] = useState(false);
-  const [activePanel, setActivePanel] = useState<SettingsPanelType>(
-    (localStorage.getItem('lastConfigPanel') || 'Font') as SettingsPanelType,
-  );
+  const [showAllTabLabels, setShowAllTabLabels] = useState(false);
   const { setFontLayoutSettingsDialogOpen } = useSettingsStore();
 
   const tabConfig = [
@@ -55,11 +55,29 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
       label: _('Color'),
     },
     {
-      tab: 'Misc',
+      tab: 'Control',
+      icon: LiaHandPointerSolid,
+      label: _('Behavior'),
+    },
+    {
+      tab: 'Language',
+      icon: RiTranslate,
+      label: _('Language'),
+    },
+    {
+      tab: 'Custom',
       icon: IoAccessibilityOutline,
-      label: _('Misc'),
+      label: _('Custom'),
     },
   ] as TabConfig[];
+
+  const [activePanel, setActivePanel] = useState<SettingsPanelType>(() => {
+    const lastPanel = localStorage.getItem('lastConfigPanel');
+    if (lastPanel && tabConfig.some((tab) => tab.tab === lastPanel)) {
+      return lastPanel as SettingsPanelType;
+    }
+    return 'Font' as SettingsPanelType;
+  });
 
   const handleSetActivePanel = (tab: SettingsPanelType) => {
     setActivePanel(tab);
@@ -75,7 +93,7 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
     if (!container) return;
 
     const checkButtonWidths = () => {
-      const threshold = (container.clientWidth - 64) * 0.3;
+      const threshold = (container.clientWidth - 64) * 0.22;
       const hideLabel = Array.from(container.querySelectorAll('button')).some((button) => {
         const labelSpan = button.querySelector('span');
         const labelText = labelSpan?.textContent || '';
@@ -93,7 +111,7 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
         document.body.removeChild(clone);
         return fullWidth > threshold;
       });
-      setShowTabLabels(!hideLabel);
+      setShowAllTabLabels(!hideLabel);
     };
 
     checkButtonWidths();
@@ -113,15 +131,18 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
   }, []);
 
   return (
-    <>
-      <Dialog
-        isOpen={true}
-        onClose={handleClose}
-        className='modal-open'
-        boxClassName={clsx('sm:min-w-[520px]', appService?.isMobile && 'sm:max-w-[90%] sm:w-3/4')}
-        snapHeight={appService?.isMobile ? 0.7 : undefined}
-        header={
-          <div className='flex w-full items-center justify-between'>
+    <Dialog
+      isOpen={true}
+      onClose={handleClose}
+      className='modal-open'
+      boxClassName={clsx('sm:min-w-[520px]', appService?.isMobile && 'sm:max-w-[90%] sm:w-3/4')}
+      snapHeight={appService?.isMobile ? 0.7 : undefined}
+      header={
+        <div className='flex w-full flex-col items-center'>
+          <div className='tab-title flex pb-2 text-base font-semibold sm:hidden'>
+            {tabConfig.find((tab) => tab.tab === activePanel)?.label || ''}
+          </div>
+          <div className='flex w-full flex-row items-center justify-between'>
             <button
               tabIndex={-1}
               onClick={handleClose}
@@ -133,23 +154,27 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
             </button>
             <div
               ref={tabsRef}
-              className={clsx(
-                'dialog-tabs flex h-10 w-full items-center',
-                showTabLabels ? 'gap-2 sm:gap-1' : 'gap-4',
-              )}
+              className={clsx('dialog-tabs ms-1 flex h-10 w-full items-center gap-1 sm:ms-0')}
             >
               {tabConfig.map(({ tab, icon: Icon, label }) => (
                 <button
                   key={tab}
                   data-tab={tab}
                   className={clsx(
-                    'btn btn-ghost text-base-content btn-sm',
+                    'btn btn-ghost text-base-content btn-sm gap-1 px-2',
                     activePanel === tab ? 'btn-active' : '',
                   )}
                   onClick={() => handleSetActivePanel(tab)}
                 >
                   <Icon className='mr-0' />
-                  <span className={clsx('label', !showTabLabels && 'hidden')}>{label}</span>
+                  <span
+                    className={clsx(
+                      window.innerWidth < 640 && 'hidden',
+                      !(showAllTabLabels || activePanel === tab) && 'hidden',
+                    )}
+                  >
+                    {label}
+                  </span>
                 </button>
               ))}
             </div>
@@ -181,14 +206,16 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
               </button>
             </div>
           </div>
-        }
-      >
-        {activePanel === 'Font' && <FontPanel bookKey={bookKey} />}
-        {activePanel === 'Layout' && <LayoutPanel bookKey={bookKey} />}
-        {activePanel === 'Color' && <ColorPanel bookKey={bookKey} />}
-        {activePanel === 'Misc' && <MiscPanel bookKey={bookKey} />}
-      </Dialog>
-    </>
+        </div>
+      }
+    >
+      {activePanel === 'Font' && <FontPanel bookKey={bookKey} />}
+      {activePanel === 'Layout' && <LayoutPanel bookKey={bookKey} />}
+      {activePanel === 'Color' && <ColorPanel bookKey={bookKey} />}
+      {activePanel === 'Control' && <ControlPanel bookKey={bookKey} />}
+      {activePanel === 'Language' && <LangPanel bookKey={bookKey} />}
+      {activePanel === 'Custom' && <MiscPanel bookKey={bookKey} />}
+    </Dialog>
   );
 };
 

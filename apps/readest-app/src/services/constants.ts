@@ -5,12 +5,13 @@ import {
   BookStyle,
   HighlightColor,
   ScreenConfig,
+  TranslatorConfig,
   TTSConfig,
   ViewConfig,
   ViewSettings,
 } from '@/types/book';
 import { ReadSettings, SystemSettings } from '@/types/settings';
-import { UserStorageQuota } from '@/types/user';
+import { UserStorageQuota, UserDailyTranslationQuota } from '@/types/user';
 import { getDefaultMaxBlockSize, getDefaultMaxInlineSize } from '@/utils/config';
 import { stubTranslation as _ } from '@/utils/misc';
 
@@ -41,6 +42,7 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   openLastBooks: false,
   lastOpenBooks: [],
   autoImportBooksOnOpen: false,
+  telemetryEnabled: true,
   libraryViewMode: 'grid',
   librarySortBy: 'updated',
   librarySortAscending: false,
@@ -56,6 +58,7 @@ export const DEFAULT_READSETTINGS: ReadSettings = {
   notebookWidth: '25%',
   isNotebookPinned: false,
   autohideCursor: true,
+  translationProvider: 'deepl',
   translateTargetLang: 'EN',
 
   customThemes: [],
@@ -105,6 +108,7 @@ export const DEFAULT_BOOK_LAYOUT: BookLayout = {
   showHeader: true,
   showFooter: true,
   showBarsOnScroll: false,
+  scrollingOverlap: 0,
 };
 
 export const DEFAULT_BOOK_STYLE: BookStyle = {
@@ -116,7 +120,7 @@ export const DEFAULT_BOOK_STYLE: BookStyle = {
   textIndent: 0,
   fullJustification: true,
   hyphenation: true,
-  invert: false,
+  invertImgColorInDark: false,
   theme: 'light',
   overrideFont: false,
   overrideLayout: false,
@@ -142,6 +146,12 @@ export const DEFAULT_VIEW_CONFIG: ViewConfig = {
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
   ttsRate: 1.3,
   ttsVoice: '',
+};
+
+export const DEFAULT_TRANSLATOR_CONFIG: TranslatorConfig = {
+  translationEnabled: false,
+  translationProvider: 'deepl',
+  translateTargetLang: '',
 };
 
 export const DEFAULT_SCREEN_CONFIG: ScreenConfig = {
@@ -517,6 +527,12 @@ export const DEFAULT_STORAGE_QUOTA: UserStorageQuota = {
   pro: 10 * 1024 * 1024 * 1024,
 };
 
+export const DEFAULT_DAILY_TRANSLATION_QUOTA: UserDailyTranslationQuota = {
+  free: 100 * 1024,
+  plus: 1 * 1024 * 1024,
+  pro: 10 * 1024 * 1024,
+};
+
 export const DOUBLE_CLICK_INTERVAL_THRESHOLD_MS = 250;
 export const DISABLE_DOUBLE_CLICK_ON_MOBILE = true;
 export const LONG_HOLD_THRESHOLD = 500;
@@ -587,6 +603,7 @@ export const TRANSLATED_LANGS = {
   en: 'English',
   fr: 'Français',
   de: 'Deutsch',
+  nl: 'Nederlands',
   it: 'Italiano',
   ja: '日本語',
   ko: '한국어',

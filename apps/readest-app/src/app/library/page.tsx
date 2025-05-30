@@ -75,6 +75,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const isInitiating = useRef(false);
   const [libraryLoaded, setLibraryLoaded] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const [isSelectAll, setIsSelectAll] = useState(false);
+  const [isSelectNone, setIsSelectNone] = useState(false);
   const [showDetailsBook, setShowDetailsBook] = useState<Book | null>(null);
   const [booksTransferProgress, setBooksTransferProgress] = useState<{
     [key: string]: number | null;
@@ -360,10 +362,11 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       ['Failed to parse EPUB.', _('Failed to parse the EPUB file.')],
       ['Unsupported format.', _('This book format is not supported.')],
     ];
+    const { library } = useLibraryStore.getState();
     for (const file of files) {
       try {
-        const book = await appService?.importBook(file, libraryBooks);
-        setLibrary(libraryBooks);
+        const book = await appService?.importBook(file, library);
+        setLibrary(library);
         if (user && book && !book.uploadedAt && settings.autoUpload) {
           console.log('Uploading book:', book.title);
           handleBookUpload(book);
@@ -386,7 +389,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         console.error('Failed to import book:', filename, error);
       }
     }
-    appService?.saveLibraryBooks(libraryBooks);
+    appService?.saveLibraryBooks(library);
     setLoading(false);
   };
 
@@ -526,18 +529,23 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     importBooks(files);
   };
 
-  const handleToggleSelectMode = () => {
-    if (!isSelectMode && appService?.hasHaptics) {
-      impactFeedback('medium');
-    }
-    setIsSelectMode((pre) => !pre);
-  };
-
   const handleSetSelectMode = (selectMode: boolean) => {
     if (selectMode && appService?.hasHaptics) {
       impactFeedback('medium');
     }
     setIsSelectMode(selectMode);
+    setIsSelectAll(false);
+    setIsSelectNone(false);
+  };
+
+  const handleSelectAll = () => {
+    setIsSelectAll(true);
+    setIsSelectNone(false);
+  };
+
+  const handleDeselectAll = () => {
+    setIsSelectNone(true);
+    setIsSelectAll(false);
   };
 
   const handleShowDetailsBook = (book: Book) => {
@@ -570,8 +578,11 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       <div className='fixed top-0 z-40 w-full'>
         <LibraryHeader
           isSelectMode={isSelectMode}
+          isSelectAll={isSelectAll}
           onImportBooks={handleImportBooks}
-          onToggleSelectMode={handleToggleSelectMode}
+          onToggleSelectMode={() => handleSetSelectMode(!isSelectMode)}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
         />
       </div>
       {loading && (
@@ -599,6 +610,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
             <Bookshelf
               libraryBooks={libraryBooks}
               isSelectMode={isSelectMode}
+              isSelectAll={isSelectAll}
+              isSelectNone={isSelectNone}
               handleImportBooks={handleImportBooks}
               handleBookUpload={handleBookUpload}
               handleBookDownload={handleBookDownload}

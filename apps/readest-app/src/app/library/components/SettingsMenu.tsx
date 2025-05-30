@@ -4,18 +4,22 @@ import { useRouter } from 'next/navigation';
 import { PiUserCircle } from 'react-icons/pi';
 import { PiUserCircleCheck } from 'react-icons/pi';
 import { MdCheck } from 'react-icons/md';
+import { TbSunMoon } from 'react-icons/tb';
+import { BiMoon, BiSun } from 'react-icons/bi';
 
 import { setAboutDialogVisible } from '@/components/AboutWindow';
 import { isTauriAppPlatform, isWebAppPlatform } from '@/services/environment';
 import { DOWNLOAD_READEST_URL } from '@/services/constants';
 import { useAuth } from '@/context/AuthContext';
 import { useEnv } from '@/context/EnvContext';
+import { useThemeStore } from '@/store/themeStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { getStoragePlanData } from '@/utils/access';
 import { navigateToLogin, navigateToProfile } from '@/utils/nav';
 import { tauriHandleSetAlwaysOnTop, tauriHandleToggleFullScreen } from '@/utils/window';
+import { optInTelemetry, optOutTelemetry } from '@/utils/telemetry';
 import { QuotaType } from '@/types/user';
 import UserAvatar from '@/components/UserAvatar';
 import MenuItem from '@/components/MenuItem';
@@ -30,6 +34,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
   const router = useRouter();
   const { envConfig, appService } = useEnv();
   const { token, user } = useAuth();
+  const { themeMode, setThemeMode } = useThemeStore();
   const { settings, setSettings, saveSettings } = useSettingsStore();
   const [quotas, setQuotas] = React.useState<QuotaType[]>([]);
   const [isAutoUpload, setIsAutoUpload] = useState(settings.autoUpload);
@@ -40,12 +45,14 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
   const [isAutoImportBooksOnOpen, setIsAutoImportBooksOnOpen] = useState(
     settings.autoImportBooksOnOpen,
   );
+  const [isTelemetryEnabled, setIsTelemetryEnabled] = useState(settings.telemetryEnabled);
   const iconSize = useResponsiveSize(16);
 
   const showAboutReadest = () => {
     setAboutDialogVisible(true);
     setIsDropdownOpen?.(false);
   };
+
   const downloadReadest = () => {
     window.open(DOWNLOAD_READEST_URL, '_blank');
     setIsDropdownOpen?.(false);
@@ -59,6 +66,11 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
   const handleUserProfile = () => {
     navigateToProfile(router);
     setIsDropdownOpen?.(false);
+  };
+
+  const cycleThemeMode = () => {
+    const nextMode = themeMode === 'auto' ? 'light' : themeMode === 'light' ? 'dark' : 'auto';
+    setThemeMode(nextMode);
   };
 
   const handleReloadPage = () => {
@@ -117,6 +129,18 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
     setSettings(settings);
     saveSettings(envConfig, settings);
     setIsOpenLastBooks(settings.openLastBooks);
+  };
+
+  const toggleTelemetry = () => {
+    settings.telemetryEnabled = !settings.telemetryEnabled;
+    if (settings.telemetryEnabled) {
+      optInTelemetry();
+    } else {
+      optOutTelemetry();
+    }
+    setSettings(settings);
+    saveSettings(envConfig, settings);
+    setIsTelemetryEnabled(settings.telemetryEnabled);
   };
 
   useEffect(() => {
@@ -211,10 +235,27 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
         Icon={isScreenWakeLock ? MdCheck : undefined}
         onClick={toggleScreenWakeLock}
       />
+      <MenuItem
+        label={
+          themeMode === 'dark'
+            ? _('Dark Mode')
+            : themeMode === 'light'
+              ? _('Light Mode')
+              : _('Auto Mode')
+        }
+        Icon={themeMode === 'dark' ? BiMoon : themeMode === 'light' ? BiSun : TbSunMoon}
+        onClick={cycleThemeMode}
+      />
       <MenuItem label={_('Reload Page')} onClick={handleReloadPage} />
       <hr className='border-base-200 my-1' />
       {isWebAppPlatform() && <MenuItem label={_('Download Readest')} onClick={downloadReadest} />}
       <MenuItem label={_('About Readest')} onClick={showAboutReadest} />
+      <MenuItem
+        label={_('Help improve Readest')}
+        description={isTelemetryEnabled ? _('Sharing anonymized statistics') : ''}
+        Icon={isTelemetryEnabled ? MdCheck : undefined}
+        onClick={toggleTelemetry}
+      />
     </div>
   );
 };

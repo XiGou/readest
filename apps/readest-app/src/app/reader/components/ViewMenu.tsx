@@ -10,7 +10,6 @@ import { useEnv } from '@/context/EnvContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useReaderStore } from '@/store/readerStore';
 import { useTranslation } from '@/hooks/useTranslation';
-import { ThemeMode } from '@/styles/themes';
 import { getStyles } from '@/utils/style';
 import { getMaxInlineSize } from '@/utils/config';
 import { tauriHandleToggleFullScreen } from '@/utils/window';
@@ -33,9 +32,12 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
   const { getView, getViewSettings, setViewSettings } = useReaderStore();
   const viewSettings = getViewSettings(bookKey)!;
 
-  const { themeMode, setThemeMode } = useThemeStore();
+  const { themeMode, isDarkMode, setThemeMode } = useThemeStore();
   const [isScrolledMode, setScrolledMode] = useState(viewSettings!.scrolled);
   const [zoomLevel, setZoomLevel] = useState(viewSettings!.zoomLevel!);
+  const [invertImgColorInDark, setInvertImgColorInDark] = useState(
+    viewSettings!.invertImgColorInDark,
+  );
 
   const zoomIn = () => setZoomLevel((prev) => Math.min(prev + ZOOM_STEP, MAX_ZOOM_LEVEL));
   const zoomOut = () => setZoomLevel((prev) => Math.max(prev - ZOOM_STEP, MIN_ZOOM_LEVEL));
@@ -48,8 +50,7 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
   };
 
   const cycleThemeMode = () => {
-    const nextMode: ThemeMode =
-      themeMode === 'auto' ? 'light' : themeMode === 'light' ? 'dark' : 'auto';
+    const nextMode = themeMode === 'auto' ? 'light' : themeMode === 'light' ? 'dark' : 'auto';
     setThemeMode(nextMode);
   };
 
@@ -75,6 +76,12 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
     saveViewSettings(envConfig, bookKey, 'zoomLevel', zoomLevel, true, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomLevel]);
+
+  useEffect(() => {
+    if (invertImgColorInDark === viewSettings.invertImgColorInDark) return;
+    saveViewSettings(envConfig, bookKey, 'invertImgColorInDark', invertImgColorInDark, true, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invertImgColorInDark]);
 
   return (
     <div
@@ -134,6 +141,12 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
         }
         Icon={themeMode === 'dark' ? BiMoon : themeMode === 'light' ? BiSun : TbSunMoon}
         onClick={cycleThemeMode}
+      />
+      <MenuItem
+        label={_('Invert Image In Dark Mode')}
+        disabled={!isDarkMode}
+        Icon={invertImgColorInDark ? MdCheck : undefined}
+        onClick={() => setInvertImgColorInDark(!invertImgColorInDark)}
       />
     </div>
   );

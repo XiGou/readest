@@ -1,5 +1,36 @@
 {
   "releases": {
+    "0.9.50": {
+      "date": "2025-05-28",
+      "notes": [
+        "Bilingual TTS: You can now choose voices for each language in bilingual text-to-speech mode",
+        "Settings Layout: Improved header layout in the settings dialog for different screen sizes",
+        "CSS Fixes: Corrected anchor text color and fixed image dimensions within paragraphs"
+      ]
+    },
+    "0.9.49": {
+      "date": "2025-05-27",
+      "notes": [
+        "Select All in Library: You can now select all books at once when in selection mode",
+        "More Translation Options: Added support for Azure and Google Translate services",
+        "Dark Mode Enhancement: New option to invert image colors for better visibility in dark mode",
+        "Bilingual TTS: Enjoy bilingual text-to-speech for books with content in two languages",
+        "Full Book Translation: Translate books in any language into bilingual ebooks",
+        "Privacy Settings: Added a new option to opt-out of telemetry"
+      ]
+    },
+    "0.9.43": {
+      "date": "2025-05-19",
+      "notes": [
+        "Enhanced compatibility with Gutenberg and Feedbooks ebooks for better styling",
+        "Reduced sensitivity of trackpad and mouse during page flips",
+        "Cloud backup status is now visible for each book on mobile and desktop",
+        "New option to control scroll overlap when paginating in scroll mode",
+        "Added Dutch language translations",
+        "Added more font weight options for built-in fonts",
+        "Added previous and next section buttons in the footer bar for easier navigation"
+      ]
+    },
     "0.9.41": {
       "date": "2025-05-13",
       "notes": [

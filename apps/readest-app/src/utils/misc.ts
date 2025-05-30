@@ -31,8 +31,20 @@ export const makeSafeFilename = (filename: string, replacement = '_') => {
   return safeName.trim();
 };
 
+export const getLocale = () => {
+  return localStorage?.getItem('i18nextLng') || navigator?.language || '';
+};
+
 export const getUserLang = () => {
-  const locale = localStorage?.getItem('i18nextLng') || navigator?.language || '';
+  const locale = getLocale();
+  return locale.split('-')[0] || 'en';
+};
+
+export const getTargetLang = () => {
+  const locale = getLocale();
+  if (locale.startsWith('zh')) {
+    return locale === 'zh-Hant' || locale === 'zh-HK' || locale === 'zh-TW' ? 'zh-Hant' : 'zh-Hans';
+  }
   return locale.split('-')[0] || 'en';
 };
 
