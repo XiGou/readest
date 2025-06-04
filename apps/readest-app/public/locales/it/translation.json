@@ -331,5 +331,20 @@
   "Scroll": "Scorri",
   "Overlap Pixels": "Pixel di sovrapposizione",
   "Click": "Fai clic",
-  "System Language": "Lingua di sistema"
+  "System Language": "Lingua di sistema",
+  "Security": "Security",
+  "Allow JavaScript": "Consenti JavaScript",
+  "Enable only if you trust the file.": "Abilita solo se ti fidi del file.",
+  "Sort TOC by Page": "Ordina sommario per pagina",
+  "Search in {{count}} Book(s)..._one": "Cerca in {{count}} libro...",
+  "Search in {{count}} Book(s)..._many": "Cerca in {{count}} libri...",
+  "Search in {{count}} Book(s)..._other": "Cerca in {{count}} libri...",
+  "No notes match your search": "Nessuna nota trovata",
+  "Search notes and excerpts...": "Cerca nelle note...",
+  "Sign in to Sync": "Accedi per sincronizzare",
+  "Synced at {{time}}": "Sincronizzato alle {{time}}",
+  "Never synced": "Mai sincronizzato",
+  "Show Remaining Time": "Mostra tempo rimanente",
+  "Show Page Number": "Mostra numero pagina",
+  "{{time}} min left in chapter": "{{time}} min rimasti nel capitolo"
 }

@@ -103,12 +103,8 @@ export const DEFAULT_BOOK_LAYOUT: BookLayout = {
   writingMode: 'auto',
   vertical: false,
   rtl: false,
-  doubleBorder: false,
-  borderColor: 'red',
-  showHeader: true,
-  showFooter: true,
-  showBarsOnScroll: false,
   scrollingOverlap: 0,
+  allowScript: false,
 };
 
 export const DEFAULT_BOOK_STYLE: BookStyle = {
@@ -141,11 +137,22 @@ export const DEFAULT_CJK_VIEW_SETTINGS: Partial<ViewSettings> = {
 export const DEFAULT_VIEW_CONFIG: ViewConfig = {
   sideBarTab: 'toc',
   uiLanguage: '',
+  sortedTOC: false,
+
+  doubleBorder: false,
+  borderColor: 'red',
+
+  showHeader: true,
+  showFooter: true,
+  showBarsOnScroll: false,
+  showRemainingTime: false,
+  showPageNumber: true,
 };
 
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
   ttsRate: 1.3,
   ttsVoice: '',
+  ttsLocation: '',
 };
 
 export const DEFAULT_TRANSLATOR_CONFIG: TranslatorConfig = {
@@ -186,7 +193,7 @@ export const CJK_SERIF_FONTS = [
 
 export const CJK_SANS_SERIF_FONTS = ['Noto Sans SC', 'Noto Sans TC'];
 
-export const SANS_SERIF_FONTS = ['Roboto', 'Noto Sans', 'Open Sans', 'Helvetica', 'Arial'];
+export const SANS_SERIF_FONTS = ['Roboto', 'Noto Sans', 'Open Sans', 'Helvetica'];
 
 export const MONOSPACE_FONTS = ['Fira Code', 'Lucida Console', 'Consolas', 'Courier New'];
 
@@ -512,7 +519,7 @@ export const READEST_UPDATER_FILE = `${GITHUB_LATEST_DOWNLOAD}/latest.json`;
 
 export const READEST_CHANGELOG_FILE = `${GITHUB_LATEST_DOWNLOAD}/release-notes.json`;
 
-export const SYNC_PROGRESS_INTERVAL_SEC = 60;
+export const SYNC_PROGRESS_INTERVAL_SEC = 3;
 export const SYNC_NOTES_INTERVAL_SEC = 10;
 export const SYNC_BOOKS_INTERVAL_SEC = 10;
 export const CHECK_UPDATE_INTERVAL_SEC = 24 * 60 * 60;

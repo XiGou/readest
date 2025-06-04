@@ -1,9 +1,16 @@
 import { create } from 'zustand';
 
-import { BookContent, BookConfig, PageInfo, BookProgress, ViewSettings } from '@/types/book';
+import {
+  BookContent,
+  BookConfig,
+  PageInfo,
+  BookProgress,
+  ViewSettings,
+  TimeInfo,
+} from '@/types/book';
 import { EnvConfigType } from '@/services/environment';
 import { FoliateView } from '@/types/view';
-import { BookDoc, DocumentLoader, TOCItem } from '@/libs/document';
+import { DocumentLoader, TOCItem } from '@/libs/document';
 import { updateToc } from '@/utils/toc';
 import { useSettingsStore } from './settingsStore';
 import { useBookDataStore } from './bookDataStore';
@@ -19,6 +26,7 @@ interface ViewState {
   error: string | null;
   progress: BookProgress | null;
   ribbonVisible: boolean;
+  ttsEnabled: boolean;
   /* View settings for the view: 
     generally view settings have a hierarchy of global settings < book settings < view settings
     view settings for primary view are saved to book config which is persisted to config file
@@ -33,12 +41,14 @@ interface ReaderStore {
   setBookKeys: (keys: string[]) => void;
   setHoveredBookKey: (key: string | null) => void;
   setBookmarkRibbonVisibility: (key: string, visible: boolean) => void;
+  setTTSEnabled: (key: string, enabled: boolean) => void;
   setProgress: (
     key: string,
     location: string,
     tocItem: TOCItem,
     section: PageInfo,
     pageinfo: PageInfo,
+    timeinfo: TimeInfo,
     range: Range,
   ) => void;
   getProgress: (key: string) => BookProgress | null;
@@ -103,6 +113,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
           error: null,
           progress: null,
           ribbonVisible: false,
+          ttsEnabled: false,
           viewSettings: null,
         },
       },
@@ -119,11 +130,10 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         const content = (await appService.loadBookContent(book, settings)) as BookContent;
         const { file, config } = content;
         console.log('Loading book', key);
-        const { book: loadedBookDoc } = await new DocumentLoader(file).open();
-        const bookDoc = loadedBookDoc as BookDoc;
-        if (bookDoc.toc?.length && bookDoc.sections?.length) {
-          updateToc(bookDoc, bookDoc.toc, bookDoc.sections);
-        }
+        const { book: bookDoc } = await new DocumentLoader(file).open({
+          allowScript: config.viewSettings?.allowScript,
+        });
+        updateToc(bookDoc, config.viewSettings?.sortedTOC ?? false);
         // Set the book's language for formerly imported books, newly imported books have this field set
         book.primaryLanguage =
           book.primaryLanguage ?? getPrimaryLanguage(bookDoc.metadata.language);
@@ -149,6 +159,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
             error: null,
             progress: null,
             ribbonVisible: false,
+            ttsEnabled: false,
             viewSettings: JSON.parse(JSON.stringify(configViewSettings)) as ViewSettings,
           },
         },
@@ -167,6 +178,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
             error: 'Failed to load book.',
             progress: null,
             ribbonVisible: false,
+            ttsEnabled: false,
             viewSettings: null,
           },
         },
@@ -211,6 +223,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
     tocItem: TOCItem,
     section: PageInfo,
     pageinfo: PageInfo,
+    timeinfo: TimeInfo,
     range: Range,
   ) =>
     set((state) => {
@@ -266,6 +279,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
               sectionId: tocItem?.id,
               section,
               pageinfo,
+              timeinfo,
               range,
             },
           },
@@ -279,6 +293,17 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         [key]: {
           ...state.viewStates[key]!,
           ribbonVisible: visible,
+        },
+      },
+    })),
+
+  setTTSEnabled: (key: string, enabled: boolean) =>
+    set((state) => ({
+      viewStates: {
+        ...state.viewStates,
+        [key]: {
+          ...state.viewStates[key]!,
+          ttsEnabled: enabled,
         },
       },
     })),

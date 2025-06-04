@@ -332,5 +332,21 @@
   "Scroll": "Прокрутка",
   "Overlap Pixels": "Пікселі перекриття",
   "Click": "Клацнути",
-  "System Language": "Системна мова"
+  "System Language": "Системна мова",
+  "Security": "Безпека",
+  "Allow JavaScript": "Дозволити JavaScript",
+  "Enable only if you trust the file.": "Увімкніть лише якщо довіряєте файлу.",
+  "Sort TOC by Page": "Сортувати зміст за сторінкою",
+  "Search in {{count}} Book(s)..._one": "Шукати в {{count}} книзі...",
+  "Search in {{count}} Book(s)..._few": "Шукати в {{count}} книгах...",
+  "Search in {{count}} Book(s)..._many": "Шукати в {{count}} книгах...",
+  "Search in {{count}} Book(s)..._other": "Шукати в {{count}} книгах...",
+  "No notes match your search": "Нотаток не знайдено",
+  "Search notes and excerpts...": "Шукати нотатки...",
+  "Sign in to Sync": "Увійти",
+  "Synced at {{time}}": "Синхр. о {{time}}",
+  "Never synced": "Ніколи не синхр.",
+  "Show Remaining Time": "Показати залишок часу",
+  "Show Page Number": "Показати номер сторінки",
+  "{{time}} min left in chapter": "{{time}} хв до кінця розділу"
 }

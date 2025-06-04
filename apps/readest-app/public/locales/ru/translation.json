@@ -332,5 +332,21 @@
   "Scroll": "Прокрутка",
   "Overlap Pixels": "Перекрывающиеся пиксели",
   "Click": "Клик",
-  "System Language": "Системный язык"
+  "System Language": "Системный язык",
+  "Security": "Безопасность",
+  "Allow JavaScript": "Разрешить JavaScript",
+  "Enable only if you trust the file.": "Включите только если доверяете файлу.",
+  "Sort TOC by Page": "Сортировать содержание по странице",
+  "Search in {{count}} Book(s)..._one": "Поиск в {{count}} книге...",
+  "Search in {{count}} Book(s)..._few": "Поиск в {{count}} книгах...",
+  "Search in {{count}} Book(s)..._many": "Поиск в {{count}} книгах...",
+  "Search in {{count}} Book(s)..._other": "Поиск в {{count}} книгах...",
+  "No notes match your search": "Записи не найдены",
+  "Search notes and excerpts...": "Искать записи...",
+  "Sign in to Sync": "Войти",
+  "Synced at {{time}}": "Синхр. в {{time}}",
+  "Never synced": "Не синхр.",
+  "Show Remaining Time": "Показать оставшееся время",
+  "Show Page Number": "Показать номер страницы",
+  "{{time}} min left in chapter": "{{time}} мин осталось в главе"
 }

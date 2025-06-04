@@ -329,5 +329,18 @@
   "Scroll": "滚动",
   "Overlap Pixels": "重叠像素",
   "Click": "点击",
-  "System Language": "系统语言"
+  "System Language": "系统语言",
+  "Security": "安全",
+  "Allow JavaScript": "允许 JavaScript",
+  "Enable only if you trust the file.": "建议仅在您信任该文件时启用",
+  "Sort TOC by Page": "按页码排序目录",
+  "Search in {{count}} Book(s)..._other": "在 {{count}} 本书籍中搜索...",
+  "No notes match your search": "未找到匹配的笔记",
+  "Search notes and excerpts...": "搜索笔记...",
+  "Sign in to Sync": "登录后同步",
+  "Synced at {{time}}": "同步于：{{time}}",
+  "Never synced": "从未同步",
+  "Show Remaining Time": "显示剩余时间",
+  "Show Page Number": "显示页码",
+  "{{time}} min left in chapter": "本章剩余 {{time}} 分钟"
 }

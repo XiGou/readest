@@ -329,5 +329,18 @@
   "Scroll": "Scroll",
   "Overlap Pixels": "Overlap Piksel",
   "Click": "Klik",
-  "System Language": "Bahasa Sistem"
+  "System Language": "Bahasa Sistem",
+  "Security": "Keamanan",
+  "Allow JavaScript": "Izinkan JavaScript",
+  "Enable only if you trust the file.": "Aktifkan hanya jika Anda mempercayai file tersebut.",
+  "Sort TOC by Page": "Urutkan TOC berdasarkan Halaman",
+  "Search in {{count}} Book(s)..._other": "Cari di {{count}} Buku...",
+  "No notes match your search": "Tidak ada catatan ditemukan",
+  "Search notes and excerpts...": "Cari catatan...",
+  "Sign in to Sync": "Masuk untuk Sinkronisasi",
+  "Synced at {{time}}": "Disinkronkan pada {{time}}",
+  "Never synced": "Belum pernah disinkronkan",
+  "Show Remaining Time": "__STRING_NOT_TRANSLATED__",
+  "Show Page Number": "__STRING_NOT_TRANSLATED__",
+  "{{time}} min left in chapter": "{{time}} menit tersisa di bab"
 }

@@ -330,5 +330,19 @@
   "Scroll": "Scrollen",
   "Overlap Pixels": "Overlap pixels",
   "Click": "Klik",
-  "System Language": "Systemtaal"
+  "System Language": "Systemtaal",
+  "Security": "Beveiliging",
+  "Allow JavaScript": "JavaScript toestaan",
+  "Enable only if you trust the file.": "Schakel alleen in als u het bestand vertrouwt.",
+  "Sort TOC by Page": "__STRING_NOT_TRANSLATED__",
+  "Search in {{count}} Book(s)..._one": "Zoeken in {{count}} Boek...",
+  "Search in {{count}} Book(s)..._other": "Zoeken in {{count}} Boeken...",
+  "No notes match your search": "Geen notities gevonden",
+  "Search notes and excerpts...": "Zoek notities...",
+  "Sign in to Sync": "Meld je aan om te synchroniseren",
+  "Synced at {{time}}": "Gesynchroniseerd om {{time}}",
+  "Never synced": "Nooit gesynchroniseerd",
+  "Show Remaining Time": "Toon resterende tijd",
+  "Show Page Number": "Toon paginanummer",
+  "{{time}} min left in chapter": "Nog {{time}} min in hoofdstuk"
 }

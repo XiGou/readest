@@ -329,5 +329,18 @@
   "Scroll": "스크롤",
   "Overlap Pixels": "겹치는 픽셀",
   "Click": "클릭",
-  "System Language": "시스템 언어"
+  "System Language": "시스템 언어",
+  "Security": "보안",
+  "Allow JavaScript": "JavaScript 허용",
+  "Enable only if you trust the file.": "파일을 신뢰하는 경우에만 활성화하세요.",
+  "Sort TOC by Page": "목차를 페이지별로 정렬",
+  "Search in {{count}} Book(s)..._other": "{{count}}권의 책에서 검색...",
+  "No notes match your search": "일치하는 노트가 없습니다",
+  "Search notes and excerpts...": "노트 검색...",
+  "Sign in to Sync": "동기화를 위해 로그인하세요",
+  "Synced at {{time}}": "{{time}}에 동기화됨",
+  "Never synced": "동기화된 적 없음",
+  "Show Remaining Time": "남은 시간 표시",
+  "Show Page Number": "페이지 번호 표시",
+  "{{time}} min left in chapter": "{{time}}분 남음"
 }

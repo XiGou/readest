@@ -68,11 +68,9 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   );
   const isImportingBook = useRef(false);
 
-  const { setLibrary } = useLibraryStore();
+  const { setCurrentBookshelf, setLibrary } = useLibraryStore();
   const allBookshelfItems =
     viewMode === 'grid' ? generateGridItems(libraryBooks) : generateListItems(libraryBooks);
-
-  const currentBookshelfItems = navBooksGroup ? navBooksGroup.books : allBookshelfItems;
 
   useEffect(() => {
     if (isImportingBook.current) return;
@@ -92,6 +90,15 @@ const Bookshelf: React.FC<BookshelfProps> = ({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [importBookUrl, appService]);
+
+  useEffect(() => {
+    if (navBooksGroup) {
+      setCurrentBookshelf(navBooksGroup.books);
+    } else {
+      setCurrentBookshelf(allBookshelfItems);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libraryBooks, navBooksGroup]);
 
   useEffect(() => {
     const group = searchParams?.get('group') || '';
@@ -227,6 +234,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
     }
   };
   const sortOrderMultiplier = sortOrder === 'asc' ? 1 : -1;
+  const currentBookshelfItems = navBooksGroup ? navBooksGroup.books : allBookshelfItems;
   const filteredBookshelfItems = currentBookshelfItems
     .filter((item) => {
       if ('name' in item) return item.books.some((book) => bookFilter(book, queryTerm || ''));

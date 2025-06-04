@@ -1,5 +1,28 @@
 {
   "releases": {
+    "0.9.52": {
+      "date": "2025-06-03",
+      "notes": [
+        "Library: The search bar now shows the number of books currently displayed",
+        "Book Details: Book descriptions now support rich HTML formatting",
+        "Notebook: Added support for writing notes using Markdown",
+        "Notebook: You can now search within your notes",
+        "Sync: A sync status item has been added to the View menu",
+        "TOC: You can now sort the table of contents by page number",
+        "Reader: Option added to show remaining time in the current chapter"
+      ]
+    },
+    "0.9.51": {
+      "date": "2025-06-01",
+      "notes": [
+        "Translator: Table of contents is now included in translations",
+        "Library Theme: Added light, dark, and system theme options to the library page",
+        "TTS: Now shows the current sentence and chapter in the media session",
+        "TTS: Text-to-speech continues from the last read sentence",
+        "Pagination Fix: Taking notes no longer breaks page turning",
+        "EPUB Scripts: Added a setting to allow JavaScript in EPUB files"
+      ]
+    },
     "0.9.50": {
       "date": "2025-05-28",
       "notes": [

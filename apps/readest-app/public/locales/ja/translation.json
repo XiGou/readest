@@ -329,5 +329,18 @@
   "Scroll": "スクロール",
   "Overlap Pixels": "重なりピクセル",
   "Click": "クリック",
-  "System Language": "システム言語"
+  "System Language": "システム言語",
+  "Security": "セキュリティ",
+  "Allow JavaScript": "JavaScriptを許可",
+  "Enable only if you trust the file.": "ファイルを信頼する場合にのみ有効にしてください。",
+  "Sort TOC by Page": "目次をページで並べ替え",
+  "Search in {{count}} Book(s)..._other": "{{count}}冊の本を検索...",
+  "No notes match your search": "ノートが見つかりません",
+  "Search notes and excerpts...": "ノートを検索...",
+  "Sign in to Sync": "同期するにはサインイン",
+  "Synced at {{time}}": "{{time}} に同期済み",
+  "Never synced": "まだ同期されていません",
+  "Show Remaining Time": "残り時間を表示",
+  "Show Page Number": "ページ番号を表示",
+  "{{time}} min left in chapter": "{{time}}分残り"
 }
