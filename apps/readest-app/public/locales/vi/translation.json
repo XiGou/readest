@@ -186,7 +186,6 @@
   "Sign in with Apple": "Đăng nhập với Apple",
   "Sign in with GitHub": "Đăng nhập với GitHub",
   "Account": "Tài khoản",
-  "Cloud Storage": "Lưu trữ đám mây",
   "Failed to delete user. Please try again later.": "Không thể xóa người dùng. Vui lòng thử lại sau.",
   "Unlimited Offline/Online Reading": "Đọc ngoại tuyến/trực tuyến không giới hạn",
   "Unlimited Cloud Sync Devices": "Đồng bộ hóa thiết bị đám mây không giới hạn",
@@ -342,5 +341,11 @@
   "Never synced": "Chưa từng đồng bộ",
   "Show Remaining Time": "Hiển thị thời gian còn lại",
   "Show Page Number": "Hiển thị số trang",
-  "{{time}} min left in chapter": "{{time}} phút còn lại trong chương"
+  "{{time}} min left in chapter": "{{time}} phút còn lại trong chương",
+  "Override Book Color": "Đổi màu sách",
+  "Login Required": "Cần đăng nhập",
+  "Quota Exceeded": "Vượt hạn mức",
+  "{{percentage}}% of Daily Translation Characters Used.": "{{percentage}}% số ký tự dịch hàng ngày đã sử dụng.",
+  "Translation Characters": "Những ký tự dịch",
+  "Daily translation quota reached. Select another translate service to proceed.": "Đã đạt hạn mức dịch hàng ngày. Chọn dịch vụ dịch khác để tiếp tục."
 }

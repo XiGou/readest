@@ -120,6 +120,7 @@ export const DEFAULT_BOOK_STYLE: BookStyle = {
   theme: 'light',
   overrideFont: false,
   overrideLayout: false,
+  overrideColor: false,
   userStylesheet: '',
 };
 
@@ -520,8 +521,8 @@ export const READEST_UPDATER_FILE = `${GITHUB_LATEST_DOWNLOAD}/latest.json`;
 export const READEST_CHANGELOG_FILE = `${GITHUB_LATEST_DOWNLOAD}/release-notes.json`;
 
 export const SYNC_PROGRESS_INTERVAL_SEC = 3;
-export const SYNC_NOTES_INTERVAL_SEC = 10;
-export const SYNC_BOOKS_INTERVAL_SEC = 10;
+export const SYNC_NOTES_INTERVAL_SEC = 5;
+export const SYNC_BOOKS_INTERVAL_SEC = 5;
 export const CHECK_UPDATE_INTERVAL_SEC = 24 * 60 * 60;
 
 export const MAX_ZOOM_LEVEL = 500;
@@ -535,9 +536,9 @@ export const DEFAULT_STORAGE_QUOTA: UserStorageQuota = {
 };
 
 export const DEFAULT_DAILY_TRANSLATION_QUOTA: UserDailyTranslationQuota = {
-  free: 100 * 1024,
-  plus: 1 * 1024 * 1024,
-  pro: 10 * 1024 * 1024,
+  free: 50 * 1024,
+  plus: 500 * 1024,
+  pro: 1024 * 1024,
 };
 
 export const DOUBLE_CLICK_INTERVAL_THRESHOLD_MS = 250;
@@ -623,7 +624,7 @@ export const TRANSLATED_LANGS = {
   pl: 'Polski',
   tr: 'Türkçe',
   hi: 'हिन्दी',
-  id: 'Bahasa Indonesia',
+  id: 'Indonesia',
   vi: 'Tiếng Việt',
   'zh-CN': '简体中文',
   'zh-TW': '正體中文',

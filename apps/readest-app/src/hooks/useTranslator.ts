@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { getTranslator, getTranslators } from '@/services/translators';
+import { ErrorCodes, getTranslator, getTranslators, TranslatorName } from '@/services/translators';
 import { getFromCache, storeInCache, polish, UseTranslatorOptions } from '@/services/translators';
+import { eventDispatcher } from '@/utils/event';
+import { useTranslation } from './useTranslation';
 
 export function useTranslator({
   provider = 'deepl',
@@ -9,8 +11,10 @@ export function useTranslator({
   targetLang = 'EN',
   enablePolishing = true,
 }: UseTranslatorOptions = {}) {
+  const _ = useTranslation();
   const { token } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState(provider);
   const [translator, setTransltor] = useState(() => getTranslator(provider));
   const [translators] = useState(() => getTranslators());
 
@@ -19,7 +23,15 @@ export function useTranslator({
   }, [provider, sourceLang, targetLang]);
 
   useEffect(() => {
-    setTransltor(getTranslator(provider));
+    const availableTranslators = getTranslators().filter(
+      (t) => (t.authRequired ? !!token : true) && !t.quotaExceeded,
+    );
+    const selectedTranslator =
+      availableTranslators.find((t) => t.name === provider) || availableTranslators[0]!;
+    const selectedProviderName = selectedTranslator.name as TranslatorName;
+    setTransltor(getTranslator(selectedProviderName));
+    setSelectedProvider(selectedProviderName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [provider]);
 
   const translate = useCallback(
@@ -47,7 +59,7 @@ export function useTranslator({
             text,
             sourceLanguage,
             targetLanguage,
-            provider,
+            selectedProvider,
           );
           if (cachedTranslation) return;
 
@@ -59,7 +71,7 @@ export function useTranslator({
       if (textsNeedingTranslation.length === 0) {
         const results = await Promise.all(
           textsToTranslate.map((text) =>
-            getFromCache(text, sourceLanguage, targetLanguage, provider).then(
+            getFromCache(text, sourceLanguage, targetLanguage, selectedProvider).then(
               (cached) => cached || text,
             ),
           ),
@@ -71,9 +83,9 @@ export function useTranslator({
       setLoading(true);
 
       try {
-        const translator = translators.find((t) => t.name === provider);
+        const translator = translators.find((t) => t.name === selectedProvider);
         if (!translator) {
-          throw new Error(`No translator found for provider: ${provider}`);
+          throw new Error(`No translator found for provider: ${selectedProvider}`);
         }
         const translatedTexts = await translator.translate(
           textsNeedingTranslation,
@@ -90,7 +102,7 @@ export function useTranslator({
               translatedTexts[index] || '',
               sourceLanguage,
               targetLanguage,
-              provider,
+              selectedProvider,
             );
           }),
         );
@@ -110,7 +122,7 @@ export function useTranslator({
                 originalText,
                 sourceLanguage,
                 targetLanguage,
-                provider,
+                selectedProvider,
               );
 
               if (cachedTranslation) {
@@ -123,13 +135,21 @@ export function useTranslator({
         setLoading(false);
         return enablePolishing ? polish(results, targetLanguage) : results;
       } catch (err) {
-        console.error('Translation error:', err);
+        if (err instanceof Error && err.message.includes(ErrorCodes.DAILY_QUOTA_EXCEEDED)) {
+          eventDispatcher.dispatch('toast', {
+            message: _(
+              'Daily translation quota reached. Select another translate service to proceed.',
+            ),
+            type: 'error',
+          });
+          setSelectedProvider('azure');
+        }
         setLoading(false);
         throw err instanceof Error ? err : new Error(String(err));
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [provider, sourceLang, targetLang, translator, token],
+    [selectedProvider, sourceLang, targetLang, translator, token],
   );
 
   return {

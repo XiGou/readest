@@ -9,7 +9,6 @@ import { TTSController, SILENCE_DATA, TTSMark } from '@/services/tts';
 import { getPopupPosition, Position } from '@/utils/sel';
 import { eventDispatcher } from '@/utils/event';
 import { parseSSMLLang } from '@/utils/ssml';
-import { getOSPlatform } from '@/utils/misc';
 import { throttle } from '@/utils/throttle';
 import { invokeUseBackgroundAudio } from '@/utils/bridge';
 import { CFI } from '@/libs/document';
@@ -57,6 +56,16 @@ const TTSControl = () => {
     if (unblockerAudioRef.current) return;
     unblockerAudioRef.current = document.createElement('audio');
     unblockerAudioRef.current.setAttribute('x-webkit-airplay', 'deny');
+    unblockerAudioRef.current.addEventListener('play', () => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = null;
+        navigator.mediaSession.setActionHandler('play', null);
+        navigator.mediaSession.setActionHandler('pause', null);
+        navigator.mediaSession.setActionHandler('stop', null);
+        navigator.mediaSession.setActionHandler('seekbackward', null);
+        navigator.mediaSession.setActionHandler('seekforward', null);
+      }
+    });
     unblockerAudioRef.current.preload = 'auto';
     unblockerAudioRef.current.loop = true;
     unblockerAudioRef.current.src = SILENCE_DATA;
@@ -189,7 +198,7 @@ const TTSControl = () => {
       if (appService?.isIOSApp) {
         await invokeUseBackgroundAudio({ enabled: true });
       }
-      if (getOSPlatform() === 'ios' || appService?.isIOSApp) {
+      if (appService?.isMobile) {
         unblockAudio();
       }
       setTtsClientsInitialized(false);
@@ -282,7 +291,7 @@ const TTSControl = () => {
     if (appService?.isIOSApp) {
       await invokeUseBackgroundAudio({ enabled: false });
     }
-    if (getOSPlatform() === 'ios' || appService?.isIOSApp) {
+    if (appService?.isMobile) {
       releaseUnblockAudio();
     }
     setTTSEnabled(bookKey, false);

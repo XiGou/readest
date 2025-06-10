@@ -1,18 +1,13 @@
 import crypto from 'crypto';
+import { supabase } from '@/utils/supabase';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { corsAllMethods, runMiddleware } from '@/utils/cors';
-import { supabase } from '@/utils/supabase';
+import { getCloudflareContext } from '@opennextjs/cloudflare';
 import { getDailyTranslationPlanData, getUserPlan } from '@/utils/access';
+import { ErrorCodes } from '@/services/translators';
 
 const DEFAULT_DEEPL_FREE_API = 'https://api-free.deepl.com/v2/translate';
 const DEFAULT_DEEPL_PRO_API = 'https://api.deepl.com/v2/translate';
-
-const ErrorCodes = {
-  UNAUTHORIZED: 'Unauthorized',
-  DEEPL_API_ERROR: 'DeepL API Error',
-  DAILY_QUOTA_EXCEEDED: 'Daily Quota Exceeded',
-  INTERNAL_SERVER_ERROR: 'Internal Server Error',
-};
 
 interface KVNamespace {
   get(key: string): Promise<string | null>;
@@ -60,7 +55,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const env = (req.env || {}) as CloudflareEnv;
+  const env = (getCloudflareContext().env || {}) as CloudflareEnv;
   const hasKVCache = !!env['TRANSLATIONS_KV'];
 
   const { user, token } = await getUserAndToken(req.headers['authorization']);
@@ -108,7 +103,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
           }
         }
 
-        // if (!user || !token) return res.status(401).json({ error: ErrorCodes.UNAUTHORIZED });
+        if (!user || !token) return res.status(401).json({ error: ErrorCodes.UNAUTHORIZED });
 
         return await callDeepLAPI(
           user?.id,
@@ -181,14 +176,17 @@ async function callDeepLAPI(
     throw new Error(`DeepL API error (${response.status}): ${errorText}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as {
+    translations?: { text: string; detected_source_language?: string }[];
+    data?: string;
+  };
 
   let translatedText = '';
   let detectedSourceLanguage = '';
 
   if (data.translations && data.translations.length > 0) {
-    translatedText = data.translations[0].text;
-    detectedSourceLanguage = data.translations[0].detected_source_language || '';
+    translatedText = data.translations[0]!.text;
+    detectedSourceLanguage = data.translations[0]!.detected_source_language || '';
   } else if (data.data) {
     translatedText = data.data;
   }

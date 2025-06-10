@@ -218,6 +218,13 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageRef.current]);
 
+  useEffect(() => {
+    if (!libraryBooks.some((book) => !book.deletedAt)) {
+      handleSetSelectMode(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [libraryBooks]);
+
   const processOpenWithFiles = React.useCallback(
     async (appService: AppService, openWithFiles: string[], libraryBooks: Book[]) => {
       const settings = await appService.loadSettings();
@@ -366,7 +373,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     for (const file of files) {
       try {
         const book = await appService?.importBook(file, library);
-        setLibrary(library);
+        setLibrary([...library]);
         if (user && book && !book.uploadedAt && settings.autoUpload) {
           console.log('Uploading book:', book.title);
           handleBookUpload(book);

@@ -1,5 +1,24 @@
 {
   "releases": {
+    "0.9.55": {
+      "date": "2025-06-07",
+      "notes": [
+        "Sync: Notes deleted on other devices now correctly sync across all platforms",
+        "Layout: Now text justification can be unset in the layout settings",
+        "Translation: Added notification when daily translation quota is exceeded",
+        "Performance: Reduced unnecessary animations on Android to improve efficiency"
+      ]
+    },
+    "0.9.53": {
+      "date": "2025-06-05",
+      "notes": [
+        "Reader: New option to customize book foreground and background colors",
+        "Reader: Fixed an issue where images appeared too small in some EPUBs",
+        "EPUB: Improved cover image detection for certain EPUB files",
+        "TTS: Improved background playback stability on iOS devices",
+        "Translation: Introduced a daily DeepL translation quota to ensure long-term availability"
+      ]
+    },
     "0.9.52": {
       "date": "2025-06-03",
       "notes": [
