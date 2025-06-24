@@ -1,5 +1,56 @@
 {
   "releases": {
+    "0.9.60": {
+      "date": "2025-06-22",
+      "notes": [
+        "Layout has been improved for iPad devices",
+        "Screen orientation changes are now smoother on iOS",
+        "Importing books on iOS during the first launch is now more reliable",
+        "Font size no longer changes unexpectedly in scrolled mode on iOS",
+        "Top and bottom safe insets are now ignored when no header or footer is present",
+        "Interactive books now load correctly on the Desktop platform",
+        "Translation is now disabled when the primary language is undefined",
+        "Android: the task list background color has been updated with current theme color"
+      ]
+    },
+    "0.9.59": {
+      "date": "2025-06-19",
+      "notes": [
+        "Layout: Image size now adjusts more accurately by converting screen units to pixels properly",
+        "Layout: Improved header layout on iOS landscape mode — extra spacing has been removed",
+        "Settings: Top and bottom margin settings are now more intuitive and better constrained"
+      ]
+    },
+    "0.9.58": {
+      "date": "2025-06-18",
+      "notes": [
+        "TTS: Translation now works even when TTS is playing in the background",
+        "TTS: Press T on your keyboard to quickly toggle TTS on or off",
+        "TTS: Each open book now has its own independent TTS controller",
+        "Annotations: Annotation tools now function properly while TTS is active",
+        "Settings: Margins for top, bottom, left, and right can now be adjusted individually",
+        "Settings: New option to always show the status bar while reading",
+        "Layout: Reader page now adapts better to device safe areas for a more comfortable layout",
+        "UI: Added creation timestamps to annotations and made various interface improvements",
+        "iPad: Multiple columns are now supported in portrait mode",
+        "iPad: Fixed issue where sidebars couldn't be resized by dragging",
+        "iPad: Added support for split-screen mode"
+      ]
+    },
+    "0.9.57": {
+      "date": "2025-06-14",
+      "notes": ["TTS: Fixed an issue to detect custom TTS engines on some Android devices"]
+    },
+    "0.9.56": {
+      "date": "2025-06-13",
+      "notes": [
+        "Performance: Improved TOC loading for books with very large chapter lists",
+        "TTS: Added support for native Android TTS engines (e.g., MultiTTS)",
+        "TTS: Fixed an issue where the next chapter would not load properly in the background",
+        "Translation: Improved accuracy and clarity of some Arabic translations",
+        "Reading: Added support for code syntax highlighting in books with code snippets"
+      ]
+    },
     "0.9.55": {
       "date": "2025-06-07",
       "notes": [

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { MdOutlineAutoMode } from 'react-icons/md';
+import { MdOutlineAutoMode, MdOutlineScreenRotation } from 'react-icons/md';
 import { MdOutlineTextRotationNone, MdTextRotateVertical } from 'react-icons/md';
+import { IoPhoneLandscapeOutline, IoPhonePortraitOutline } from 'react-icons/io5';
 import { TbTextDirectionRtl } from 'react-icons/tb';
 
 import { useEnv } from '@/context/EnvContext';
@@ -10,19 +11,21 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { isCJKEnv } from '@/utils/misc';
 import { getStyles } from '@/utils/style';
 import { getMaxInlineSize } from '@/utils/config';
+import { lockScreenOrientation } from '@/utils/bridge';
 import { getBookDirFromWritingMode, getBookLangCode } from '@/utils/book';
-import { MIGHT_BE_RTL_LANGS } from '@/services/constants';
+import { MIGHT_BE_RTL_LANGS, RELOAD_BEFREE_SAVED_TIMEOUT_MS } from '@/services/constants';
 import { saveViewSettings } from '../../utils/viewSettingsHelper';
 import NumberInput from './NumberInput';
 
 const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
   const _ = useTranslation();
-  const { envConfig } = useEnv();
-  const { getView, getViewSettings, setViewSettings } = useReaderStore();
+  const { envConfig, appService } = useEnv();
+  const { getView, getViewSettings, getGridInsets, setViewSettings } = useReaderStore();
   const { getBookData } = useBookDataStore();
   const view = getView(bookKey);
   const bookData = getBookData(bookKey)!;
   const viewSettings = getViewSettings(bookKey)!;
+  const gridInsets = getGridInsets(bookKey)!;
 
   const [paragraphMargin, setParagraphMargin] = useState(viewSettings.paragraphMargin!);
   const [lineHeight, setLineHeight] = useState(viewSettings.lineHeight!);
@@ -31,10 +34,23 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
   const [textIndent, setTextIndent] = useState(viewSettings.textIndent!);
   const [fullJustification, setFullJustification] = useState(viewSettings.fullJustification!);
   const [hyphenation, setHyphenation] = useState(viewSettings.hyphenation!);
-  const [marginPx, setMarginPx] = useState(viewSettings.marginPx!);
+  const [marginTopPx, setMarginTopPx] = useState(
+    viewSettings.marginPx || viewSettings.marginTopPx!,
+  );
+  const [marginBottomPx, setMarginBottomPx] = useState(viewSettings.marginBottomPx!);
+  const [marginLeftPx, setMarginLeftPx] = useState(viewSettings.marginLeftPx!);
+  const [marginRightPx, setMarginRightPx] = useState(viewSettings.marginRightPx!);
+  const [compactMarginTopPx, setCompactMarginTopPx] = useState(
+    viewSettings.compactMarginPx || viewSettings.compactMarginTopPx!,
+  );
+  const [compactMarginBottomPx, setCompactMarginBottomPx] = useState(
+    viewSettings.compactMarginBottomPx!,
+  );
   const [gapPercent, setGapPercent] = useState(viewSettings.gapPercent!);
-  const [compactMarginPx, setCompactMarginPx] = useState(viewSettings.compactMarginPx!);
-  const [compactGapPercent, setCompactGapPercent] = useState(viewSettings.compactGapPercent!);
+  const [compactMarginLeftPx, setCompactMarginLeftPx] = useState(viewSettings.compactMarginLeftPx!);
+  const [compactMarginRightPx, setCompactMarginRightPx] = useState(
+    viewSettings.compactMarginRightPx!,
+  );
   const [maxColumnCount, setMaxColumnCount] = useState(viewSettings.maxColumnCount!);
   const [maxInlineSize, setMaxInlineSize] = useState(viewSettings.maxInlineSize!);
   const [maxBlockSize, setMaxBlockSize] = useState(viewSettings.maxBlockSize!);
@@ -47,6 +63,8 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
   const [showBarsOnScroll, setShowBarsOnScroll] = useState(viewSettings.showBarsOnScroll!);
   const [showRemainingTime, setShowRemainingTime] = useState(viewSettings.showRemainingTime!);
   const [showPageNumber, setShowPageNumber] = useState(viewSettings.showPageNumber!);
+
+  const [screenOrientation, setScreenOrientation] = useState(viewSettings.screenOrientation!);
 
   useEffect(() => {
     saveViewSettings(envConfig, bookKey, 'paragraphMargin', paragraphMargin);
@@ -84,18 +102,90 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
   }, [hyphenation]);
 
   useEffect(() => {
-    if (marginPx === viewSettings.marginPx) return;
-    saveViewSettings(envConfig, bookKey, 'marginPx', marginPx, false, false);
-    view?.renderer.setAttribute('margin', `${marginPx}px`);
+    if (marginTopPx === viewSettings.marginTopPx) return;
+    if (viewSettings.marginPx !== undefined) {
+      saveViewSettings(envConfig, bookKey, 'marginPx', undefined, false, false);
+    }
+    saveViewSettings(envConfig, bookKey, 'marginTopPx', marginTopPx, false, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [marginPx]);
+  }, [marginTopPx]);
 
   useEffect(() => {
-    if (compactMarginPx === viewSettings.compactMarginPx) return;
-    saveViewSettings(envConfig, bookKey, 'compactMarginPx', compactMarginPx, false, false);
-    view?.renderer.setAttribute('margin', `${compactMarginPx}px`);
+    if (marginBottomPx === viewSettings.marginBottomPx) return;
+    if (viewSettings.marginPx !== undefined) {
+      saveViewSettings(envConfig, bookKey, 'marginPx', undefined, false, false);
+    }
+    saveViewSettings(envConfig, bookKey, 'marginBottomPx', marginBottomPx, false, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compactMarginPx]);
+  }, [marginBottomPx]);
+
+  useEffect(() => {
+    if (marginRightPx === viewSettings.marginRightPx) return;
+    if (viewSettings.marginPx !== undefined) {
+      saveViewSettings(envConfig, bookKey, 'marginPx', undefined, false, false);
+    }
+    saveViewSettings(envConfig, bookKey, 'marginRightPx', marginRightPx, false, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marginRightPx]);
+
+  useEffect(() => {
+    if (marginLeftPx === viewSettings.marginLeftPx) return;
+    if (viewSettings.marginPx !== undefined) {
+      saveViewSettings(envConfig, bookKey, 'marginPx', undefined, false, false);
+    }
+    saveViewSettings(envConfig, bookKey, 'marginLeftPx', marginLeftPx, false, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marginLeftPx]);
+
+  useEffect(() => {
+    if (compactMarginTopPx === viewSettings.compactMarginTopPx) return;
+    if (viewSettings.compactMarginPx !== undefined) {
+      saveViewSettings(envConfig, bookKey, 'compactMarginPx', undefined, false, false);
+    }
+    saveViewSettings(envConfig, bookKey, 'compactMarginTopPx', compactMarginTopPx, false, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compactMarginTopPx]);
+
+  useEffect(() => {
+    if (compactMarginBottomPx === viewSettings.compactMarginBottomPx) return;
+    if (viewSettings.compactMarginPx !== undefined) {
+      saveViewSettings(envConfig, bookKey, 'compactMarginPx', undefined, false, false);
+    }
+    saveViewSettings(
+      envConfig,
+      bookKey,
+      'compactMarginBottomPx',
+      compactMarginBottomPx,
+      false,
+      false,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compactMarginBottomPx]);
+
+  useEffect(() => {
+    if (compactMarginRightPx === viewSettings.compactMarginRightPx) return;
+    if (viewSettings.compactMarginPx !== undefined) {
+      saveViewSettings(envConfig, bookKey, 'compactMarginPx', undefined, false, false);
+    }
+    saveViewSettings(
+      envConfig,
+      bookKey,
+      'compactMarginRightPx',
+      compactMarginRightPx,
+      false,
+      false,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compactMarginRightPx]);
+
+  useEffect(() => {
+    if (compactMarginLeftPx === viewSettings.compactMarginLeftPx) return;
+    if (viewSettings.compactMarginPx !== undefined) {
+      saveViewSettings(envConfig, bookKey, 'compactMarginPx', undefined, false, false);
+    }
+    saveViewSettings(envConfig, bookKey, 'compactMarginLeftPx', compactMarginLeftPx, false, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compactMarginLeftPx]);
 
   useEffect(() => {
     if (gapPercent === viewSettings.gapPercent) return;
@@ -106,16 +196,6 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gapPercent]);
-
-  useEffect(() => {
-    if (compactGapPercent === viewSettings.compactGapPercent) return;
-    saveViewSettings(envConfig, bookKey, 'compactGapPercent', compactGapPercent, false, false);
-    view?.renderer.setAttribute('gap', `${compactGapPercent}%`);
-    if (viewSettings.scrolled) {
-      view?.renderer.setAttribute('flow', 'scrolled');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compactGapPercent]);
 
   useEffect(() => {
     if (maxColumnCount === viewSettings.maxColumnCount) return;
@@ -158,7 +238,7 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
       (['horizontal-rl', 'vertical-rl'].includes(writingMode) ||
         ['horizontal-rl', 'vertical-rl'].includes(prevWritingMode))
     ) {
-      setTimeout(() => window.location.reload(), 100);
+      setTimeout(() => window.location.reload(), RELOAD_BEFREE_SAVED_TIMEOUT_MS);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [writingMode]);
@@ -171,14 +251,6 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
 
   useEffect(() => {
     if (doubleBorder === viewSettings.doubleBorder) return;
-    if (doubleBorder && viewSettings.vertical) {
-      viewSettings.gapPercent = Math.max(
-        viewSettings.gapPercent,
-        Math.ceil(4800 / window.innerWidth),
-      );
-      setGapPercent(viewSettings.gapPercent);
-      setViewSettings(bookKey, viewSettings);
-    }
     saveViewSettings(envConfig, bookKey, 'doubleBorder', doubleBorder, false, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doubleBorder]);
@@ -203,59 +275,43 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPageNumber]);
 
-  const applyMarginAndGap = () => {
-    const isCompact = !showHeader && !showFooter;
-    const marginPx = isCompact ? viewSettings.compactMarginPx : viewSettings.marginPx;
-    const gapPercent = isCompact ? viewSettings.compactGapPercent : viewSettings.gapPercent;
-    view?.renderer.setAttribute('margin', `${marginPx}px`);
-    view?.renderer.setAttribute('gap', `${gapPercent}%`);
-    if (viewSettings.scrolled) {
-      view?.renderer.setAttribute('flow', 'scrolled');
-    }
-  };
-
   useEffect(() => {
     if (showHeader === viewSettings.showHeader) return;
     if (showHeader && !viewSettings.vertical) {
-      viewSettings.marginPx = Math.max(viewSettings.marginPx, 44);
-      setMarginPx(viewSettings.marginPx);
-      setViewSettings(bookKey, viewSettings);
-    } else if (showHeader && viewSettings.vertical) {
-      viewSettings.gapPercent = Math.max(
-        viewSettings.gapPercent,
-        Math.ceil(4800 / window.innerWidth),
-      );
-      setGapPercent(viewSettings.gapPercent);
+      const minMarginTop = Math.max(0, Math.round((44 - gridInsets.top) / 4) * 4);
+      viewSettings.marginTopPx = Math.max(viewSettings.marginTopPx, minMarginTop);
+      setMarginTopPx(viewSettings.marginTopPx);
       setViewSettings(bookKey, viewSettings);
     }
     saveViewSettings(envConfig, bookKey, 'showHeader', showHeader, false, false);
-
-    applyMarginAndGap();
+    // Margin and gap settings will be applied in FoliateViewer
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showHeader]);
 
   useEffect(() => {
     if (showFooter === viewSettings.showFooter) return;
     if (showFooter && !viewSettings.vertical) {
-      viewSettings.marginPx = Math.max(viewSettings.marginPx, 44);
-      setMarginPx(viewSettings.marginPx);
-      setViewSettings(bookKey, viewSettings);
-    } else if (showFooter && viewSettings.vertical) {
-      viewSettings.gapPercent = Math.max(
-        viewSettings.gapPercent,
-        Math.ceil(4800 / window.innerWidth),
-      );
-      setGapPercent(viewSettings.gapPercent);
+      const minMarginBottom = Math.max(0, Math.round((44 - gridInsets.bottom) / 4) * 4);
+      viewSettings.marginBottomPx = Math.max(viewSettings.marginBottomPx, minMarginBottom);
+      setMarginBottomPx(viewSettings.marginBottomPx);
       setViewSettings(bookKey, viewSettings);
     }
     saveViewSettings(envConfig, bookKey, 'showFooter', showFooter, false, false);
-
-    applyMarginAndGap();
+    // Margin and gap settings will be applied in FoliateViewer
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showFooter]);
 
+  useEffect(() => {
+    saveViewSettings(envConfig, bookKey, 'screenOrientation', screenOrientation, false, false);
+    if (appService?.isMobileApp) {
+      lockScreenOrientation({ orientation: screenOrientation });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenOrientation]);
+
   const langCode = getBookLangCode(bookData.bookDoc?.metadata?.language);
   const mightBeRTLBook = MIGHT_BE_RTL_LANGS.includes(langCode) || isCJKEnv();
+  const isVertical = viewSettings.vertical || writingMode.includes('vertical');
 
   return (
     <div className='my-4 w-full space-y-6'>
@@ -418,22 +474,50 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
         <div className='card bg-base-100 border-base-200 border shadow'>
           <div className='divide-base-200 divide-y'>
             <NumberInput
-              label={_('Vertical Margins (px)')}
-              value={showFooter || showHeader ? marginPx : compactMarginPx}
-              onChange={showFooter || showHeader ? setMarginPx : setCompactMarginPx}
-              min={!viewSettings.vertical && (showFooter || showHeader) ? 44 : 0}
+              label={_('Top Margin (px)')}
+              value={showHeader && !isVertical ? marginTopPx : compactMarginTopPx}
+              onChange={showHeader && !isVertical ? setMarginTopPx : setCompactMarginTopPx}
+              min={
+                showHeader && !isVertical
+                  ? Math.max(0, Math.round((44 - gridInsets.top) / 4) * 4)
+                  : 0
+              }
               max={88}
               step={4}
             />
             <NumberInput
-              label={_('Horizontal Margins (%)')}
-              value={showFooter || showHeader ? gapPercent : compactGapPercent}
-              onChange={showFooter || showHeader ? setGapPercent : setCompactGapPercent}
+              label={_('Bottom Margin (px)')}
+              value={showFooter && !isVertical ? marginBottomPx : compactMarginBottomPx}
+              onChange={showFooter && !isVertical ? setMarginBottomPx : setCompactMarginBottomPx}
               min={
-                viewSettings.vertical && (showFooter || showHeader)
-                  ? Math.ceil(4800 / window.innerWidth)
+                showFooter && !isVertical
+                  ? Math.max(0, Math.round((44 - gridInsets.bottom) / 4) * 4)
                   : 0
               }
+              max={88}
+              step={4}
+            />
+            <NumberInput
+              label={_('Left Margin (px)')}
+              value={showFooter && isVertical ? marginLeftPx : compactMarginLeftPx}
+              onChange={showFooter && isVertical ? setMarginLeftPx : setCompactMarginLeftPx}
+              min={0}
+              max={88}
+              step={4}
+            />
+            <NumberInput
+              label={_('Right Margin (px)')}
+              value={showHeader && isVertical ? marginRightPx : compactMarginRightPx}
+              onChange={showHeader && isVertical ? setMarginRightPx : setCompactMarginRightPx}
+              min={0}
+              max={88}
+              step={4}
+            />
+            <NumberInput
+              label={_('Column Gap (%)')}
+              value={gapPercent}
+              onChange={setGapPercent}
+              min={0}
               max={30}
             />
             <NumberInput
@@ -519,6 +603,47 @@ const LayoutPanel: React.FC<{ bookKey: string }> = ({ bookKey }) => {
           </div>
         </div>
       </div>
+
+      {appService?.isMobileApp && (
+        <div className='w-full'>
+          <h2 className='mb-2 font-medium'>{_('Screen')}</h2>
+          <div className='card border-base-200 bg-base-100 border shadow'>
+            <div className='divide-base-200 divide-y'>
+              <div className='config-item'>
+                <span className=''>{_('Orientation')}</span>
+                <div className='flex gap-4'>
+                  <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('Auto')}>
+                    <button
+                      className={`btn btn-ghost btn-circle btn-sm ${screenOrientation === 'auto' ? 'btn-active bg-base-300' : ''}`}
+                      onClick={() => setScreenOrientation('auto')}
+                    >
+                      <MdOutlineScreenRotation />
+                    </button>
+                  </div>
+
+                  <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('Portrait')}>
+                    <button
+                      className={`btn btn-ghost btn-circle btn-sm ${screenOrientation === 'portrait' ? 'btn-active bg-base-300' : ''}`}
+                      onClick={() => setScreenOrientation('portrait')}
+                    >
+                      <IoPhonePortraitOutline />
+                    </button>
+                  </div>
+
+                  <div className='lg:tooltip lg:tooltip-bottom' data-tip={_('Landscape')}>
+                    <button
+                      className={`btn btn-ghost btn-circle btn-sm ${screenOrientation === 'landscape' ? 'btn-active bg-base-300' : ''}`}
+                      onClick={() => setScreenOrientation('landscape')}
+                    >
+                      <IoPhoneLandscapeOutline />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

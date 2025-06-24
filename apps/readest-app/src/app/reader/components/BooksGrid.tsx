@@ -4,10 +4,12 @@ import React, { useEffect } from 'react';
 import { useEnv } from '@/context/EnvContext';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useReaderStore } from '@/store/readerStore';
-import { useBookDataStore } from '@/store/bookDataStore';
 import { useSidebarStore } from '@/store/sidebarStore';
+import { useBookDataStore } from '@/store/bookDataStore';
+import { useSafeAreaInsets } from '@/hooks/useSafeAreaInsets';
+import { getGridTemplate, getInsetEdges } from '@/utils/grid';
+import { getViewInsets } from '@/utils/insets';
 import FoliateViewer from './FoliateViewer';
-import getGridTemplate from '@/utils/grid';
 import SectionInfo from './SectionInfo';
 import HeaderBar from './HeaderBar';
 import FooterBar from './FooterBar';
@@ -18,7 +20,6 @@ import Annotator from './annotator/Annotator';
 import FootnotePopup from './FootnotePopup';
 import HintInfo from './HintInfo';
 import DoubleBorder from './DoubleBorder';
-import TTSControl from './tts/TTSControl';
 
 interface BooksGridProps {
   bookKeys: string[];
@@ -28,10 +29,14 @@ interface BooksGridProps {
 const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
   const { appService } = useEnv();
   const { getConfig, getBookData } = useBookDataStore();
-  const { getProgress, getViewState, getViewSettings, hoveredBookKey } = useReaderStore();
+  const { getProgress, getViewState, getViewSettings } = useReaderStore();
+  const { getGridInsets, setGridInsets, hoveredBookKey } = useReaderStore();
   const { isSideBarVisible, sideBarBookKey } = useSidebarStore();
   const { isFontLayoutSettingsDialogOpen, setFontLayoutSettingsDialogOpen } = useSettingsStore();
-  const gridTemplate = getGridTemplate(bookKeys.length, window.innerWidth / window.innerHeight);
+
+  const screenInsets = useSafeAreaInsets();
+  const aspectRatio = window.innerWidth / window.innerHeight;
+  const gridTemplate = getGridTemplate(bookKeys.length, aspectRatio);
 
   useEffect(() => {
     if (!sideBarBookKey) return;
@@ -40,6 +45,23 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
     document.title = bookData.book.title;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sideBarBookKey]);
+
+  useEffect(() => {
+    if (!screenInsets) return;
+    bookKeys.forEach((bookKey, index) => {
+      const { top, right, bottom, left } = getInsetEdges(index, bookKeys.length, aspectRatio);
+      const gridInsets = {
+        top: top ? screenInsets.top : 0,
+        right: right ? screenInsets.right : 0,
+        bottom: bottom ? screenInsets.bottom : 0,
+        left: left ? screenInsets.left : 0,
+      };
+      setGridInsets(bookKey, gridInsets);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookKeys, screenInsets]);
+
+  if (!screenInsets) return null;
 
   return (
     <div
@@ -54,13 +76,20 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
         const config = getConfig(bookKey);
         const progress = getProgress(bookKey);
         const viewSettings = getViewSettings(bookKey);
+        const gridInsets = getGridInsets(bookKey);
         const { book, bookDoc } = bookData || {};
-        if (!book || !config || !bookDoc || !viewSettings) return null;
+        if (!book || !config || !bookDoc || !viewSettings || !gridInsets) return null;
 
         const { section, pageinfo, timeinfo, sectionLabel } = progress || {};
         const isBookmarked = getViewState(bookKey)?.ribbonVisible;
         const horizontalGapPercent = viewSettings.gapPercent;
-        const verticalMarginPixels = viewSettings.marginPx;
+        const viewInsets = getViewInsets(viewSettings);
+        const contentInsets = {
+          top: gridInsets.top + viewInsets.top,
+          right: gridInsets.right + viewInsets.right,
+          bottom: gridInsets.bottom + viewInsets.bottom,
+          left: gridInsets.left + viewInsets.left,
+        };
         const scrolled = viewSettings.scrolled;
         const showBarsOnScroll = viewSettings.showBarsOnScroll;
         const showHeader = viewSettings.showHeader && (scrolled ? showBarsOnScroll : true);
@@ -72,10 +101,6 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
             key={bookKey}
             className={clsx(
               'relative h-full w-full overflow-hidden',
-              index === 0 &&
-                !viewSettings?.scrolled &&
-                appService?.hasSafeAreaInset &&
-                'pt-[env(safe-area-inset-top)]',
               !isSideBarVisible && appService?.hasRoundedWindow && 'rounded-window',
             )}
           >
@@ -87,16 +112,22 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
               isHoveredAnim={bookKeys.length > 2}
               onCloseBook={onCloseBook}
               onSetSettingsDialogOpen={setFontLayoutSettingsDialogOpen}
+              gridInsets={gridInsets}
             />
-            <FoliateViewer bookKey={bookKey} bookDoc={bookDoc} config={config} />
+            <FoliateViewer
+              bookKey={bookKey}
+              bookDoc={bookDoc}
+              config={config}
+              contentInsets={contentInsets}
+            />
             {viewSettings.vertical && viewSettings.scrolled && (
               <>
                 {(showFooter || viewSettings.doubleBorder) && (
                   <div
                     className='bg-base-100 absolute left-0 top-0 h-full'
                     style={{
-                      width: `calc(${horizontalGapPercent}%)`,
-                      height: `calc(100% - ${verticalMarginPixels}px)`,
+                      width: `calc(${contentInsets.left + (showFooter ? 32 : 0)}px)`,
+                      height: `calc(100%)`,
                     }}
                   />
                 )}
@@ -104,8 +135,8 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
                   <div
                     className='bg-base-100 absolute right-0 top-0 h-full'
                     style={{
-                      width: `calc(${horizontalGapPercent}%)`,
-                      height: `calc(100% - ${verticalMarginPixels}px)`,
+                      width: `calc(${contentInsets.right + (showHeader ? 32 : 0)}px)`,
+                      height: `calc(100%)`,
                     }}
                   />
                 )}
@@ -117,7 +148,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
                 showFooter={showFooter}
                 borderColor={viewSettings.borderColor}
                 horizontalGap={horizontalGapPercent}
-                verticalMargin={verticalMarginPixels}
+                contentInsets={contentInsets}
               />
             )}
             {showHeader && (
@@ -127,7 +158,8 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
                 isScrolled={viewSettings.scrolled}
                 isVertical={viewSettings.vertical}
                 horizontalGap={horizontalGapPercent}
-                verticalMargin={verticalMarginPixels}
+                contentInsets={contentInsets}
+                gridInsets={gridInsets}
               />
             )}
             <HintInfo
@@ -136,7 +168,8 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
               isScrolled={viewSettings.scrolled}
               isVertical={viewSettings.vertical}
               horizontalGap={horizontalGapPercent}
-              verticalMargin={verticalMarginPixels}
+              contentInsets={contentInsets}
+              gridInsets={gridInsets}
             />
             {showFooter && (
               <ProgressInfoView
@@ -146,7 +179,8 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
                 pageinfo={pageinfo}
                 timeinfo={timeinfo}
                 horizontalGap={horizontalGapPercent}
-                verticalMargin={verticalMarginPixels}
+                contentInsets={contentInsets}
+                gridInsets={gridInsets}
               />
             )}
             <Annotator bookKey={bookKey} />
@@ -157,12 +191,12 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
               section={section}
               pageinfo={pageinfo}
               isHoveredAnim={false}
+              gridInsets={gridInsets}
             />
             {isFontLayoutSettingsDialogOpen && <SettingsDialog bookKey={bookKey} config={config} />}
           </div>
         );
       })}
-      <TTSControl />
     </div>
   );
 };

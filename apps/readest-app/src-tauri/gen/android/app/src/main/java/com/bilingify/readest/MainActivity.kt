@@ -1,10 +1,14 @@
 package com.bilingify.readest
 
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import android.view.KeyEvent
 import android.webkit.WebView
 import android.util.Log
+import android.graphics.Color
+import android.app.ActivityManager
+import android.content.res.Configuration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -77,5 +81,15 @@ class MainActivity : TauriActivity(), KeyDownInterceptor {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            setTaskDescription(
+                ActivityManager.TaskDescription(
+                    getString(R.string.app_name),
+                    null,
+                    Color.TRANSPARENT
+                )
+            )
+        }
     }
 }

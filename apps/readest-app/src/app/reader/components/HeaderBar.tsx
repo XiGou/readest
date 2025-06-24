@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import React, { useEffect, useRef, useState } from 'react';
 import { PiDotsThreeVerticalBold } from 'react-icons/pi';
 
+import { Insets } from '@/types/misc';
 import { useEnv } from '@/context/EnvContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useReaderStore } from '@/store/readerStore';
@@ -22,6 +23,7 @@ interface HeaderBarProps {
   bookTitle: string;
   isTopLeft: boolean;
   isHoveredAnim: boolean;
+  gridInsets: Insets;
   onCloseBook: (bookKey: string) => void;
   onSetSettingsDialogOpen: (open: boolean) => void;
 }
@@ -31,6 +33,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
   bookTitle,
   isTopLeft,
   isHoveredAnim,
+  gridInsets,
   onCloseBook,
   onSetSettingsDialogOpen,
 }) => {
@@ -77,10 +80,10 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
 
   return (
     <div
-      className={clsx(
-        'bg-base-100 absolute top-0 w-full',
-        appService?.hasSafeAreaInset && 'pt-[env(safe-area-inset-top)]',
-      )}
+      className={clsx('bg-base-100 absolute top-0 w-full')}
+      style={{
+        paddingTop: appService?.hasSafeAreaInset ? `${gridInsets.top}px` : '0px',
+      }}
     >
       <div
         className={clsx('absolute top-0 z-10 hidden h-11 w-full sm:flex')}
@@ -89,11 +92,11 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
       />
       <div
         className={clsx(
-          'bg-base-100 absolute left-0 right-0 top-0 z-10 h-[env(safe-area-inset-top)]',
+          'bg-base-100 absolute left-0 right-0 top-0 z-10',
           isVisible ? 'visible' : 'hidden',
         )}
         style={{
-          height: systemUIVisible ? `max(env(safe-area-inset-top), ${statusBarHeight}px)` : '',
+          height: systemUIVisible ? `${Math.max(gridInsets.top, statusBarHeight)}px` : '0px',
         }}
       />
       <div
@@ -110,12 +113,12 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
         )}
         style={{
           marginTop: systemUIVisible
-            ? `max(env(safe-area-inset-top), ${statusBarHeight}px)`
-            : 'env(safe-area-inset-top)',
+            ? `${Math.max(gridInsets.top, statusBarHeight)}px`
+            : `${gridInsets.top}px`,
         }}
         onMouseLeave={() => !appService?.isMobile && setHoveredBookKey('')}
       >
-        <div className='sidebar-bookmark-toggler z-20 flex h-full items-center gap-x-4'>
+        <div className='bg-base-100 sidebar-bookmark-toggler z-20 flex h-full items-center gap-x-4 pe-2'>
           <div className='hidden sm:flex'>
             <SidebarToggler bookKey={bookKey} />
           </div>
@@ -129,7 +132,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
           </h2>
         </div>
 
-        <div className='bg-base-100 z-20 ml-auto flex h-full items-center space-x-4'>
+        <div className='bg-base-100 z-20 ml-auto flex h-full items-center space-x-4 ps-2'>
           <SettingsToggler />
           <NotebookToggler bookKey={bookKey} />
           <Dropdown

@@ -17,10 +17,13 @@ import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 import { eventDispatcher } from '@/utils/event';
 import { interceptWindowOpen } from '@/utils/open';
 import { mountAdditionalFonts } from '@/utils/font';
-import { setSystemUIVisibility } from '@/utils/bridge';
+import { isTauriAppPlatform } from '@/services/environment';
+import { getSysFontsList, setSystemUIVisibility } from '@/utils/bridge';
 import { AboutWindow } from '@/components/AboutWindow';
 import { UpdaterWindow } from '@/components/UpdaterWindow';
 import { Toast } from '@/components/Toast';
+import { getLocale } from '@/utils/misc';
+import { initDayjs } from '@/utils/time';
 import ReaderContent from './ReaderContent';
 
 const Reader: React.FC<{ ids?: string }> = ({ ids }) => {
@@ -30,32 +33,22 @@ const Reader: React.FC<{ ids?: string }> = ({ ids }) => {
   const { settings, setSettings } = useSettingsStore();
   const { isSideBarVisible, setSideBarVisible } = useSidebarStore();
   const { isNotebookVisible, setNotebookVisible } = useNotebookStore();
-  const { isDarkMode, showSystemUI, dismissSystemUI } = useThemeStore();
+  const { isDarkMode, systemUIAlwaysHidden, showSystemUI, dismissSystemUI } = useThemeStore();
   const { acquireBackKeyInterception, releaseBackKeyInterception } = useDeviceControlStore();
   const [libraryLoaded, setLibraryLoaded] = useState(false);
   const isInitiating = useRef(false);
 
-  useTheme({ systemUIVisible: false, appThemeColor: 'base-100' });
+  useTheme({ systemUIVisible: settings.alwaysShowStatusBar, appThemeColor: 'base-100' });
   useScreenWakeLock(settings.screenWakeLock);
 
   useEffect(() => {
     mountAdditionalFonts(document);
     interceptWindowOpen();
+    if (isTauriAppPlatform()) {
+      setTimeout(getSysFontsList, 3000);
+    }
+    initDayjs(getLocale());
   }, []);
-
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (appService?.isMobileApp && !document.hidden) {
-        dismissSystemUI();
-        setSystemUIVisibility({ visible: false, darkMode: isDarkMode });
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appService, isDarkMode]);
 
   const handleKeyDown = (event: CustomEvent) => {
     if (event.detail.keyName === 'Back') {
@@ -102,9 +95,10 @@ const Reader: React.FC<{ ids?: string }> = ({ ids }) => {
 
   useEffect(() => {
     if (!appService?.isMobileApp) return;
-    const systemUIVisible = !!hoveredBookKey;
-    setSystemUIVisibility({ visible: systemUIVisible, darkMode: isDarkMode });
-    if (systemUIVisible) {
+    const systemUIVisible = !!hoveredBookKey || settings.alwaysShowStatusBar;
+    const visible = systemUIVisible && !systemUIAlwaysHidden;
+    setSystemUIVisibility({ visible, darkMode: isDarkMode });
+    if (visible) {
       showSystemUI();
     } else {
       dismissSystemUI();

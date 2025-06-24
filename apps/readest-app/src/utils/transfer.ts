@@ -69,7 +69,7 @@ export const webDownload = async (downloadUrl: string, onProgress?: ProgressHand
     }
   }
 
-  return new Blob(chunks);
+  return new Blob(chunks as BlobPart[]);
 };
 
 export const tauriUpload = async (

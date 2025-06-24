@@ -8,6 +8,7 @@ import {
   ViewSettings,
   TimeInfo,
 } from '@/types/book';
+import { Insets } from '@/types/misc';
 import { EnvConfigType } from '@/services/environment';
 import { FoliateView } from '@/types/view';
 import { DocumentLoader, TOCItem } from '@/libs/document';
@@ -27,6 +28,7 @@ interface ViewState {
   progress: BookProgress | null;
   ribbonVisible: boolean;
   ttsEnabled: boolean;
+  gridInsets: Insets | null;
   /* View settings for the view: 
     generally view settings have a hierarchy of global settings < book settings < view settings
     view settings for primary view are saved to book config which is persisted to config file
@@ -67,6 +69,8 @@ interface ReaderStore {
   ) => Promise<void>;
   clearViewState: (key: string) => void;
   getViewState: (key: string) => ViewState | null;
+  getGridInsets: (key: string) => Insets | null;
+  setGridInsets: (key: string, insets: Insets | null) => void;
 }
 
 export const useReaderStore = create<ReaderStore>((set, get) => ({
@@ -114,14 +118,15 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
           progress: null,
           ribbonVisible: false,
           ttsEnabled: false,
+          gridInsets: null,
           viewSettings: null,
         },
       },
     }));
     try {
+      const { settings } = useSettingsStore.getState();
       if (!bookData) {
         const appService = await envConfig.getAppService();
-        const { settings } = useSettingsStore.getState();
         const { library } = useLibraryStore.getState();
         const book = library.find((b) => b.hash === id);
         if (!book) {
@@ -130,9 +135,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         const content = (await appService.loadBookContent(book, settings)) as BookContent;
         const { file, config } = content;
         console.log('Loading book', key);
-        const { book: bookDoc } = await new DocumentLoader(file).open({
-          allowScript: config.viewSettings?.allowScript,
-        });
+        const { book: bookDoc } = await new DocumentLoader(file).open();
         updateToc(bookDoc, config.viewSettings?.sortedTOC ?? false);
         // Set the book's language for formerly imported books, newly imported books have this field set
         book.primaryLanguage =
@@ -147,6 +150,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
       const booksData = useBookDataStore.getState().booksData;
       const config = booksData[id]?.config as BookConfig;
       const configViewSettings = config.viewSettings!;
+      const globalViewSettings = settings.globalViewSettings;
       set((state) => ({
         viewStates: {
           ...state.viewStates,
@@ -160,7 +164,8 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
             progress: null,
             ribbonVisible: false,
             ttsEnabled: false,
-            viewSettings: JSON.parse(JSON.stringify(configViewSettings)) as ViewSettings,
+            gridInsets: null,
+            viewSettings: { ...globalViewSettings, ...configViewSettings },
           },
         },
       }));
@@ -179,6 +184,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
             progress: null,
             ribbonVisible: false,
             ttsEnabled: false,
+            gridInsets: null,
             viewSettings: null,
           },
         },
@@ -304,6 +310,18 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         [key]: {
           ...state.viewStates[key]!,
           ttsEnabled: enabled,
+        },
+      },
+    })),
+
+  getGridInsets: (key: string) => get().viewStates[key]?.gridInsets || null,
+  setGridInsets: (key: string, insets: Insets | null) =>
+    set((state) => ({
+      viewStates: {
+        ...state.viewStates,
+        [key]: {
+          ...state.viewStates[key]!,
+          gridInsets: insets,
         },
       },
     })),

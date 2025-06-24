@@ -1,8 +1,7 @@
 import { BookDoc } from '@/libs/document';
 import { BookNote, BookSearchConfig, BookSearchResult } from '@/types/book';
+import { TTSGranularity } from '@/services/tts';
 import { TTS } from 'foliate-js/tts.js';
-
-export type TTSGranularity = 'sentence' | 'word';
 
 export interface FoliateView extends HTMLElement {
   open: (book: BookDoc) => Promise<void>;
@@ -21,7 +20,7 @@ export interface FoliateView extends HTMLElement {
   clearSearch: () => void;
   select: (target: string | number | { fraction: number }) => void;
   deselect: () => void;
-  initTTS: (granularity?: TTSGranularity) => Promise<void>;
+  initTTS: (granularity?: TTSGranularity, highlight?: (range: Range) => void) => Promise<void>;
   book: BookDoc;
   tts: TTS | null;
   language: {
@@ -42,6 +41,7 @@ export interface FoliateView extends HTMLElement {
     start: number;
     end: number;
     containerPosition: number;
+    sideProp: 'width' | 'height';
     setAttribute: (name: string, value: string | number) => void;
     removeAttribute: (name: string) => void;
     next: () => Promise<void>;
@@ -50,7 +50,8 @@ export interface FoliateView extends HTMLElement {
     prevSection?: () => Promise<void>;
     goTo?: (params: { index: number; anchor: number }) => void;
     setStyles?: (css: string) => void;
-    getContents: () => { doc: Document; index?: number }[];
+    getContents: () => { doc: Document; index?: number; overlayer?: unknown }[];
+    scrollToAnchor: (anchor: number | Range) => void;
     addEventListener: (
       type: string,
       listener: EventListener,

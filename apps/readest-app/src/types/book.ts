@@ -2,6 +2,7 @@ export type BookFormat = 'EPUB' | 'PDF' | 'MOBI' | 'CBZ' | 'FB2' | 'FBZ';
 export type BookNoteType = 'bookmark' | 'annotation' | 'excerpt';
 export type HighlightStyle = 'highlight' | 'underline' | 'squiggly';
 export type HighlightColor = 'red' | 'yellow' | 'green' | 'blue' | 'violet';
+import { CodeLanguage } from '@/utils/highlightjs';
 
 export interface Book {
   // if Book is a remote book we just lazy load the book content via url
@@ -72,10 +73,17 @@ export interface BooknoteGroup {
 export type WritingMode = 'auto' | 'horizontal-tb' | 'horizontal-rl' | 'vertical-rl';
 
 export interface BookLayout {
-  marginPx: number;
+  marginTopPx: number;
+  marginBottomPx: number;
+  marginLeftPx: number;
+  marginRightPx: number;
+  marginPx?: number; // deprecated
+  compactMarginTopPx: number;
+  compactMarginBottomPx: number;
+  compactMarginLeftPx: number;
+  compactMarginRightPx: number;
+  compactMarginPx?: number; // deprecated
   gapPercent: number;
-  compactMarginPx: number;
-  compactGapPercent: number;
   scrolled: boolean;
   disableClick: boolean;
   swapClickArea: boolean;
@@ -106,7 +114,10 @@ export interface BookStyle {
   overrideFont: boolean;
   overrideLayout: boolean;
   overrideColor: boolean;
+  codeHighlighting: boolean;
+  codeLanguage: CodeLanguage;
   userStylesheet: string;
+  userUIStylesheet: string;
 }
 
 export interface BookFont {

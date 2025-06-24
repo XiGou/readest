@@ -21,8 +21,10 @@ import { eventDispatcher } from '@/utils/event';
 import { viewPagination } from '../hooks/usePagination';
 import { saveViewSettings } from '../utils/viewSettingsHelper';
 import { PageInfo } from '@/types/book';
+import { Insets } from '@/types/misc';
 import Button from '@/components/Button';
 import Slider from '@/components/Slider';
+import TTSControl from './tts/TTSControl';
 
 interface FooterBarProps {
   bookKey: string;
@@ -30,6 +32,7 @@ interface FooterBarProps {
   section?: PageInfo;
   pageinfo?: PageInfo;
   isHoveredAnim: boolean;
+  gridInsets: Insets;
 }
 
 const FooterBar: React.FC<FooterBarProps> = ({
@@ -38,6 +41,7 @@ const FooterBar: React.FC<FooterBarProps> = ({
   section,
   pageinfo,
   isHoveredAnim,
+  gridInsets,
 }) => {
   const _ = useTranslation();
   const { envConfig, appService } = useEnv();
@@ -64,9 +68,13 @@ const FooterBar: React.FC<FooterBarProps> = ({
   };
 
   const handleMarginChange = (value: number) => {
+    const viewSettings = getViewSettings(bookKey)!;
     const marginPx = Math.round((value / 100) * 88);
     const gapPercent = Math.round((value / 100) * 10);
-    saveViewSettings(envConfig, bookKey, 'marginPx', marginPx, false, false);
+    viewSettings.marginTopPx = marginPx;
+    viewSettings.marginBottomPx = marginPx / 2;
+    viewSettings.marginLeftPx = marginPx / 2;
+    viewSettings.marginRightPx = marginPx / 2;
     saveViewSettings(envConfig, bookKey, 'gapPercent', gapPercent, false, false);
     view?.renderer.setAttribute('margin', `${marginPx}px`);
     view?.renderer.setAttribute('gap', `${gapPercent}%`);
@@ -108,8 +116,8 @@ const FooterBar: React.FC<FooterBarProps> = ({
   };
 
   const handleSpeakText = async () => {
-    if (!view || !progress) return;
-    if (eventDispatcher.dispatchSync('tts-is-speaking')) {
+    if (!view || !progress || !viewState) return;
+    if (viewState.ttsEnabled) {
       eventDispatcher.dispatch('tts-stop', { bookKey });
     } else {
       eventDispatcher.dispatch('tts-speak', { bookKey });
@@ -155,6 +163,8 @@ const FooterBar: React.FC<FooterBarProps> = ({
       ? (progressInfo!.current + 1) / progressInfo!.total || 0
       : 0;
 
+  const isMobile = window.innerWidth < 640 || window.innerHeight < 640;
+
   return (
     <>
       <div
@@ -194,9 +204,7 @@ const FooterBar: React.FC<FooterBarProps> = ({
               : 'pointer-events-none invisible translate-y-full overflow-hidden pb-0 pt-0 ease-in',
           )}
           style={{
-            bottom: appService?.hasSafeAreaInset
-              ? 'calc(env(safe-area-inset-bottom) + 64px)'
-              : '64px',
+            bottom: isMobile ? `${gridInsets.bottom + 64}px` : '64px',
           }}
         >
           <div className='flex w-full items-center justify-between gap-x-6'>
@@ -250,9 +258,7 @@ const FooterBar: React.FC<FooterBarProps> = ({
               : 'pointer-events-none invisible translate-y-full overflow-hidden pb-0 pt-0 ease-in',
           )}
           style={{
-            bottom: appService?.hasSafeAreaInset
-              ? 'calc(env(safe-area-inset-bottom) + 64px)'
-              : '64px',
+            bottom: isMobile ? `${gridInsets.bottom + 64}px` : '64px',
           }}
         >
           <Slider
@@ -269,7 +275,7 @@ const FooterBar: React.FC<FooterBarProps> = ({
           <div className='flex w-full items-center justify-between gap-x-6'>
             <Slider
               initialValue={getMarginProgressValue(
-                viewSettings?.marginPx ?? 44,
+                viewSettings?.marginTopPx ?? 44,
                 viewSettings?.gapPercent ?? 5,
               )}
               bubbleElement={<TbBoxMargin size={marginIconSize} />}
@@ -292,8 +298,10 @@ const FooterBar: React.FC<FooterBarProps> = ({
         <div
           className={clsx(
             'bg-base-200 z-50 mt-auto flex w-full justify-between px-8 py-4 sm:hidden',
-            appService?.hasSafeAreaInset && 'pb-[calc(env(safe-area-inset-bottom)+16px)]',
           )}
+          style={{
+            paddingBottom: isMobile ? `${gridInsets.bottom + 16}px` : '0px',
+          }}
         >
           <Button
             icon={<TOCIcon size={tocIconSize} className='' />}
@@ -318,8 +326,13 @@ const FooterBar: React.FC<FooterBarProps> = ({
             onClick={() => handleSetActionTab('tts')}
           />
         </div>
-        {/* Desktop footer bar */}
-        <div className='hidden w-full items-center gap-x-4 px-4 sm:flex'>
+        {/* Desktop / Pad footer bar */}
+        <div
+          className='absolute hidden h-full w-full items-center gap-x-4 px-4 sm:flex'
+          style={{
+            bottom: isMobile ? `${gridInsets.bottom / 2}px` : '0px',
+          }}
+        >
           <Button
             icon={viewSettings?.rtl ? <RiArrowRightDoubleLine /> : <RiArrowLeftDoubleLine />}
             onClick={viewSettings?.rtl ? handleGoNextSection : handleGoPrevSection}
@@ -372,6 +385,7 @@ const FooterBar: React.FC<FooterBarProps> = ({
           />
         </div>
       </div>
+      <TTSControl bookKey={bookKey} />
     </>
   );
 };

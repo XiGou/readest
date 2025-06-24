@@ -15,6 +15,8 @@
 [![][badge-discord]][link-discord]
 [![AGPL Licence][badge-license]](LICENSE)
 [![Latest release][badge-release]][link-gh-releases]
+[![Donate][badge-donate]][link-donate]
+<br>
 [![Last commit][badge-last-commit]][link-gh-commits]
 [![Commits][badge-commit-activity]][link-gh-pulse]
 
@@ -27,6 +29,7 @@
   <a href="#downloads">Downloads</a> •
   <a href="#getting-started">Getting Started</a> •
   <a href="#troubleshooting">Troubleshooting</a> •
+  <a href="#support">Support</a> •
   <a href="#license">License</a>
 </p>
 
@@ -55,6 +58,7 @@
 | **Translate with DeepL**                | From a single sentence to the entire book—translate instantly with DeepL.                      | ✅         |
 | **Text-to-Speech (TTS) Support**        | Enjoy smooth, multilingual narration—even within a single book.                                | ✅         |
 | **Library Management**                  | Organize, sort, and manage your entire ebook library.                                          | ✅         |
+| **Code Syntax Highlighting**            | Read software manuals with rich coloring of code examples.                                     | ✅         |
 
 ## Planned Features
 
@@ -63,8 +67,8 @@
 
 | **Feature**                     | **Description**                                                                            | **Priority** |
 | ------------------------------- | ------------------------------------------------------------------------------------------ | ------------ |
+| **Sync with Koreader**          | Synchronize reading progress, notes, and bookmarks with [Koreader][link-koreader] devices. | 🛠           |
 | **AI-Powered Summarization**    | Generate summaries of books or chapters using AI for quick insights.                       | 🛠           |
-| **Sync with Koreader**          | Synchronize reading progress, notes, and bookmarks with [Koreader][link-koreader] devices. | 🔄           |
 | **Keyboard Navigation**         | Implement vimium-style keybindings for book navigation.                                    | 🔄           |
 | **Support OPDS/Calibre**        | Integrate OPDS/Calibre to access online libraries and catalogs.                            | 🔄           |
 | **Audiobook Support**           | Extend functionality to play and manage audiobooks.                                        | 🔄           |
@@ -86,7 +90,7 @@ Stay tuned for continuous improvements and updates! Contributions and suggestion
 
 ![Wikipedia](./data/screenshots/wikipedia_vertical.png)
 
-![Themeing Dark Mode](./data/screenshots/theming_dark_mode.png)
+![Theming Dark Mode](./data/screenshots/theming_dark_mode.png)
 
 ---
 
@@ -94,7 +98,7 @@ Stay tuned for continuous improvements and updates! Contributions and suggestion
 
 The Readest app is available for download! 🥳 🚀
 
-- macOS / iOS / iPadOS : Search for "Readest" on the [App Store][link-appstore], also available on TestFlight for beta test (send your Apple ID to readestapp@gmail.com to request access).
+- macOS / iOS / iPadOS : Search for "Readest" on the [App Store][link-appstore], also available on TestFlight for beta test (send your Apple ID to <readestapp@gmail.com> to request access).
 - Windows / Linux / Android: Visit [https://readest.com][link-website] or the [Releases on GitHub][link-gh-releases].
 - Web: Visit [https://web.readest.com][link-web-readest].
 
@@ -242,6 +246,20 @@ Readest is open-source, and contributions are welcome! Feel free to open issues,
   </p>
 </a>
 
+## Support
+
+If Readest has been useful to you, consider supporting its development. Your contribution helps us squash bugs faster, improve performance, and keep building great features.
+
+### How to Donate
+
+1. **GitHub Sponsors**  
+   Back the project directly on GitHub:  
+   👉 [https://github.com/sponsors/readest](https://github.com/sponsors/readest)
+
+2. **Crypto Donations**  
+   Prefer crypto? You can donate here:  
+   👉 [https://donate.readest.com/](https://donate.readest.com/)
+
 ## License
 
 Readest is free software: you can redistribute it and/or modify it under the terms of the [GNU Affero General Public License](https://www.gnu.org/licenses/agpl-3.0.html) as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version. See the [LICENSE](LICENSE) file for details.
@@ -276,6 +294,8 @@ The following fonts are utilized in this software, either bundled within the app
 [badge-commit-activity]: https://img.shields.io/github/commit-activity/m/readest/readest
 [badge-discord]: https://img.shields.io/discord/1314226120886976544?color=5865F2&label=discord&labelColor=black&logo=discord&logoColor=white&style=flat-square
 [badge-hellogithub]: https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=8a5b6ade2aee461a8bd94e59200682a7&claim_uid=eRLUbPOy2qZtDgw&theme=small
+[badge-donate]: https://donate.readest.com/badge.svg
+[link-donate]: https://donate.readest.com/?tickers=btc%2Ceth%2Csol%2Cusdc
 [link-appstore]: https://apps.apple.com/app/apple-store/id6738622779?pt=127463130&ct=github&mt=8
 [link-website]: https://readest.com?utm_source=github&utm_medium=referral&utm_campaign=readme
 [link-web-readest]: https://web.readest.com

@@ -177,6 +177,7 @@ const SideBar: React.FC<{
         className={clsx(
           'sidebar-container bg-base-200 z-20 flex min-w-60 select-none flex-col',
           appService?.isIOSApp ? 'h-[100vh]' : 'h-full',
+          'transition-[padding-top] duration-300',
           appService?.hasSafeAreaInset && 'pt-[env(safe-area-inset-top)]',
           appService?.hasRoundedWindow && 'rounded-window-top-left rounded-window-bottom-left',
           !isSideBarPinned && 'shadow-2xl',
@@ -248,8 +249,9 @@ const SideBar: React.FC<{
           <SidebarContent bookDoc={bookDoc} sideBarBookKey={sideBarBookKey!} />
         )}
         <div
-          className='drag-bar absolute right-0 top-0 h-full w-0.5 cursor-col-resize'
+          className='drag-bar absolute right-0 top-0 -m-3 h-full w-0.5 cursor-col-resize p-3'
           onMouseDown={handleHorizontalDragStart}
+          onTouchStart={handleHorizontalDragStart}
         ></div>
       </div>
       {!isSideBarPinned && (

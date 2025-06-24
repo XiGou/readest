@@ -58,6 +58,8 @@ const getFontStyles = (
       font-family: var(${defaultFont.toLowerCase() === 'serif' ? '--serif' : '--sans-serif'}) ${overrideFont ? '!important' : ''};
       font-size: ${fontSize}px !important;
       font-weight: ${fontWeight};
+      -webkit-text-size-adjust: none;
+      text-size-adjust: none;
     }
     font[size="1"] {
       font-size: ${minFontSize}px;
@@ -108,7 +110,11 @@ const getColorStyles = (
     html, body {
       color: ${fg};
     }
-    div, p, span, pre {
+    div, p, h1, h2, h3, h4, h5, h6 {
+      ${overrideColor ? `background-color: ${bg} !important;` : ''}
+      ${overrideColor ? `color: ${fg} !important;` : ''}
+    }
+    pre, span { /* inline code blocks */
       ${overrideColor ? `background-color: ${bg} !important;` : ''}
     }
     a:any-link {
@@ -205,7 +211,7 @@ const getLayoutStyles = (
     width: auto;
     background-color: transparent !important;
   }
-  p, li, blockquote, dd, div:not(:has(*:not(b, a, em, i, strong, u, span))) {
+  p, blockquote, dd, div:not(:has(*:not(b, a, em, i, strong, u, span))) {
     line-height: ${lineSpacing} ${overrideLayout ? '!important' : ''};
     word-spacing: ${wordSpacing}px ${overrideLayout ? '!important' : ''};
     letter-spacing: ${letterSpacing}px ${overrideLayout ? '!important' : ''};
@@ -220,7 +226,8 @@ const getLayoutStyles = (
     hanging-punctuation: allow-end last;
     widows: 2;
   }
-  p:has(> img:only-child), p:has(> span:only-child > img:only-child) {
+  p:has(> img:only-child), p:has(> span:only-child > img:only-child),
+  p:has(> a:first-child + img:last-child) {
     text-indent: unset !important;
   }
   p {
@@ -234,6 +241,14 @@ const getLayoutStyles = (
     ${vertical && overrideLayout ? `margin-right: ${paragraphMargin}em !important;` : ''}
     ${!vertical && overrideLayout ? `margin-top: ${paragraphMargin}em !important;` : ''}
     ${!vertical && overrideLayout ? `margin-bottom: ${paragraphMargin}em !important;` : ''}
+  }
+  h1, h2, h3, h4, h5, h6 {
+    text-align: initial;
+  }
+
+  :lang(zh), :lang(ja), :lang(ko) {
+    widows: 1;
+    orphans: 1;
   }
 
   pre {
@@ -270,7 +285,9 @@ const getLayoutStyles = (
   p > img, span > img, sup img {
     height: 1em;
   }
-  p:has(> img:only-child) img, span:has(> img:only-child) img {
+  p:has(> img:only-child) img, span:has(> img:only-child) img,
+  p:has(> a:first-child + img:last-child) img,
+  span:has(> a:first-child + img:last-child) img {
     height: auto;
   }
 
@@ -408,16 +425,9 @@ export const getStyles = (viewSettings: ViewSettings, themeCode?: ThemeCode) => 
   return `${layoutStyles}\n${fontStyles}\n${colorStyles}\n${translationStyles}\n${userStylesheet}`;
 };
 
-export const transformStylesheet = (
-  viewSettings: ViewSettings,
-  width: number,
-  height: number,
-  css: string,
-) => {
+export const transformStylesheet = (vw: number, vh: number, css: string) => {
   const isMobile = ['ios', 'android'].includes(getOSPlatform());
   const fontScale = isMobile ? 1.25 : 1;
-  const w = width * (1 - viewSettings.gapPercent / 100);
-  const h = height - viewSettings.marginPx * 2;
   const ruleRegex = /([^{]+)({[^}]+})/g;
   css = css.replace(ruleRegex, (match, selector, block) => {
     const hasTextAlignCenter = /text-align\s*:\s*center\s*[;$]/.test(block);
@@ -455,8 +465,8 @@ export const transformStylesheet = (
       const rem = parseFloat(pt) / fontScale / 12;
       return `font-size: ${rem}rem`;
     })
-    .replace(/(\d*\.?\d+)vw/gi, (_, d) => (parseFloat(d) * w) / 100 + 'px')
-    .replace(/(\d*\.?\d+)vh/gi, (_, d) => (parseFloat(d) * h) / 100 + 'px')
+    .replace(/(\d*\.?\d+)vw/gi, (_, d) => (parseFloat(d) * vw) / 100 + 'px')
+    .replace(/(\d*\.?\d+)vh/gi, (_, d) => (parseFloat(d) * vh) / 100 + 'px')
     .replace(/[\s;]color\s*:\s*black/gi, 'color: var(--theme-fg-color)')
     .replace(/[\s;]color\s*:\s*#000000/gi, 'color: var(--theme-fg-color)')
     .replace(/[\s;]color\s*:\s*#000/gi, 'color: var(--theme-fg-color)')

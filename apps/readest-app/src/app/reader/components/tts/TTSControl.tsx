@@ -20,13 +20,16 @@ const POPUP_WIDTH = 282;
 const POPUP_HEIGHT = 160;
 const POPUP_PADDING = 10;
 
-const TTSControl = () => {
+interface TTSControlProps {
+  bookKey: string;
+}
+
+const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
   const _ = useTranslation();
   const { appService } = useEnv();
   const { getBookData } = useBookDataStore();
   const { getView, getProgress, getViewSettings } = useReaderStore();
   const { setViewSettings, setTTSEnabled } = useReaderStore();
-  const [bookKey, setBookKey] = useState<string>('');
   const [ttsLang, setTtsLang] = useState<string>('en');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -90,7 +93,7 @@ const TTSControl = () => {
   useEffect(() => {
     return () => {
       if (ttsControllerRef.current) {
-        ttsControllerRef.current.kill();
+        ttsControllerRef.current.shutdown();
         ttsControllerRef.current = null;
       }
     };
@@ -99,11 +102,9 @@ const TTSControl = () => {
   useEffect(() => {
     eventDispatcher.on('tts-speak', handleTTSSpeak);
     eventDispatcher.on('tts-stop', handleTTSStop);
-    eventDispatcher.onSync('tts-is-speaking', handleQueryIsSpeaking);
     return () => {
       eventDispatcher.off('tts-speak', handleTTSSpeak);
       eventDispatcher.off('tts-stop', handleTTSStop);
-      eventDispatcher.offSync('tts-is-speaking', handleQueryIsSpeaking);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -154,7 +155,9 @@ const TTSControl = () => {
   }, [ttsController, bookKey]);
 
   const handleTTSSpeak = async (event: CustomEvent) => {
-    const { bookKey, range } = event.detail;
+    const { bookKey: ttsBookKey, range } = event.detail;
+    if (bookKey !== ttsBookKey) return;
+
     const view = getView(bookKey);
     const progress = getProgress(bookKey);
     const viewSettings = getViewSettings(bookKey);
@@ -184,7 +187,6 @@ const TTSControl = () => {
     }
 
     const primaryLang = bookData.book.primaryLanguage;
-    setBookKey(bookKey);
 
     if (ttsControllerRef.current) {
       ttsControllerRef.current.stop();
@@ -202,7 +204,7 @@ const TTSControl = () => {
         unblockAudio();
       }
       setTtsClientsInitialized(false);
-      const ttsController = new TTSController(view);
+      const ttsController = new TTSController(appService, view);
       await ttsController.init();
       await ttsController.initViewTTS();
       const ssml = view.tts?.from(ttsFromRange);
@@ -232,14 +234,10 @@ const TTSControl = () => {
   };
 
   const handleTTSStop = async (event: CustomEvent) => {
-    const { bookKey } = event.detail;
-    if (ttsControllerRef.current) {
+    const { bookKey: ttsBookKey } = event.detail;
+    if (ttsControllerRef.current && bookKey === ttsBookKey) {
       handleStop(bookKey);
     }
-  };
-
-  const handleQueryIsSpeaking = () => {
-    return !!ttsControllerRef.current;
   };
 
   const handleTogglePlay = async () => {
@@ -280,7 +278,7 @@ const TTSControl = () => {
   const handleStop = async (bookKey: string) => {
     const ttsController = ttsControllerRef.current;
     if (ttsController) {
-      await ttsController.stop();
+      await ttsController.shutdown();
       ttsControllerRef.current = null;
       setTtsController(null);
       getView(bookKey)?.deselect();

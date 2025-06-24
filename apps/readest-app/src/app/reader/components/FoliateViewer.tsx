@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BookDoc, getDirection } from '@/libs/document';
 import { BookConfig } from '@/types/book';
 import { FoliateView, wrappedFoliateView } from '@/types/view';
+import { Insets } from '@/types/misc';
 import { useEnv } from '@/context/EnvContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useReaderStore } from '@/store/readerStore';
@@ -29,26 +30,38 @@ import {
 import { getMaxInlineSize } from '@/utils/config';
 import { getDirFromUILanguage } from '@/utils/rtl';
 import { isCJKLang } from '@/utils/lang';
+import { isTauriAppPlatform } from '@/services/environment';
 import { transformContent } from '@/services/transformService';
 import { lockScreenOrientation } from '@/utils/bridge';
 import { useTextTranslation } from '../hooks/useTextTranslation';
+import { manageSyntaxHighlighting } from '@/utils/highlightjs';
+import { getViewInsets } from '@/utils/insets';
+
+declare global {
+  interface Window {
+    eval(script: string): void;
+  }
+}
 
 const FoliateViewer: React.FC<{
   bookKey: string;
   bookDoc: BookDoc;
   config: BookConfig;
-}> = ({ bookKey, bookDoc, config }) => {
-  const { appService } = useEnv();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<FoliateView | null>(null);
-  const isViewCreated = useRef(false);
+  contentInsets: Insets;
+}> = ({ bookKey, bookDoc, config, contentInsets: insets }) => {
   const { getView, setView: setFoliateView, setProgress } = useReaderStore();
   const { getViewSettings, setViewSettings } = useReaderStore();
   const { getParallels } = useParallelViewStore();
   const { getBookData } = useBookDataStore();
+  const { appService } = useEnv();
   const { themeCode, isDarkMode } = useThemeStore();
+  const viewSettings = getViewSettings(bookKey);
 
+  const viewRef = useRef<FoliateView | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isViewCreated = useRef(false);
   const [toastMessage, setToastMessage] = useState('');
+
   useEffect(() => {
     const timer = setTimeout(() => setToastMessage(''), 2000);
     return () => clearTimeout(timer);
@@ -79,7 +92,7 @@ const FoliateViewer: React.FC<{
         .then((data) => {
           const viewSettings = getViewSettings(bookKey);
           if (viewSettings && detail.type === 'text/css')
-            return transformStylesheet(viewSettings, width, height, data);
+            return transformStylesheet(width, height, data);
           if (viewSettings && detail.type === 'application/xhtml+xml') {
             const ctx = {
               bookKey,
@@ -116,6 +129,16 @@ const FoliateViewer: React.FC<{
 
       mountAdditionalFonts(detail.doc, isCJKLang(bookData.book?.primaryLanguage));
 
+      // Inline scripts in tauri platforms are not executed by default
+      if (viewSettings.allowScript && isTauriAppPlatform()) {
+        evalInlineScripts(detail.doc);
+      }
+
+      // only call on load if we have highlighting turned on.
+      if (viewSettings.codeHighlighting) {
+        manageSyntaxHighlighting(detail.doc, viewSettings);
+      }
+
       if (!detail.doc.isEventListenersAdded) {
         // listened events in iframes are posted to the main window
         // and then used by useMouseEvent and useTouchEvent
@@ -130,6 +153,22 @@ const FoliateViewer: React.FC<{
         detail.doc.addEventListener('touchmove', handleTouchMove.bind(null, bookKey));
         detail.doc.addEventListener('touchend', handleTouchEnd.bind(null, bookKey));
       }
+    }
+  };
+
+  const evalInlineScripts = (doc: Document) => {
+    if (doc.defaultView && doc.defaultView.frameElement) {
+      const iframe = doc.defaultView.frameElement as HTMLIFrameElement;
+      const scripts = doc.querySelectorAll('script:not([src])');
+      scripts.forEach((script, index) => {
+        const scriptContent = script.textContent || script.innerHTML;
+        try {
+          console.warn('Evaluating inline scripts in iframe');
+          iframe.contentWindow?.eval(scriptContent);
+        } catch (error) {
+          console.error(`Error executing iframe script ${index + 1}:`, error);
+        }
+      });
     }
   };
 
@@ -161,14 +200,6 @@ const FoliateViewer: React.FC<{
   });
 
   useEffect(() => {
-    if (viewRef.current && viewRef.current.renderer) {
-      const viewSettings = getViewSettings(bookKey)!;
-      viewRef.current.renderer.setStyles?.(getStyles(viewSettings));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeCode, isDarkMode]);
-
-  useEffect(() => {
     if (isViewCreated.current) return;
     isViewCreated.current = true;
 
@@ -179,10 +210,6 @@ const FoliateViewer: React.FC<{
       view.id = `foliate-view-${bookKey}`;
       document.body.append(view);
       containerRef.current?.appendChild(view);
-
-      const containerRect = containerRef.current?.getBoundingClientRect();
-      const width = containerRect?.width || window.innerWidth;
-      const height = containerRect?.height || window.innerHeight;
 
       const viewSettings = getViewSettings(bookKey)!;
       const writingMode = viewSettings.writingMode;
@@ -203,15 +230,19 @@ const FoliateViewer: React.FC<{
 
       const { book } = view;
 
+      book.transformTarget?.addEventListener('load', (event: Event) => {
+        const { detail } = event as CustomEvent;
+        if (detail.isScript) {
+          detail.allowScript = viewSettings.allowScript ?? false;
+        }
+      });
+      const viewWidth = appService?.isMobile ? screen.width : window.innerWidth;
+      const viewHeight = appService?.isMobile ? screen.height : window.innerHeight;
+      const width = viewWidth - insets.left - insets.right;
+      const height = viewHeight - insets.top - insets.bottom;
       book.transformTarget?.addEventListener('data', getDocTransformHandler({ width, height }));
       view.renderer.setStyles?.(getStyles(viewSettings));
 
-      const isScrolled = viewSettings.scrolled!;
-      const showHeader = viewSettings.showHeader!;
-      const showFooter = viewSettings.showFooter!;
-      const isCompact = !showHeader && !showFooter;
-      const marginPx = isCompact ? viewSettings.compactMarginPx : viewSettings.marginPx;
-      const gapPercent = isCompact ? viewSettings.compactGapPercent : viewSettings.gapPercent;
       const animated = viewSettings.animated!;
       const maxColumnCount = viewSettings.maxColumnCount!;
       const maxInlineSize = getMaxInlineSize(viewSettings);
@@ -225,12 +256,10 @@ const FoliateViewer: React.FC<{
       } else {
         view.renderer.removeAttribute('animated');
       }
-      view.renderer.setAttribute('flow', isScrolled ? 'scrolled' : 'paginated');
-      view.renderer.setAttribute('margin', `${marginPx}px`);
-      view.renderer.setAttribute('gap', `${gapPercent}%`);
       view.renderer.setAttribute('max-column-count', maxColumnCount);
       view.renderer.setAttribute('max-inline-size', `${maxInlineSize}px`);
       view.renderer.setAttribute('max-block-size', `${maxBlockSize}px`);
+      applyMarginAndGap();
 
       const lastLocation = config.location;
       if (lastLocation) {
@@ -244,15 +273,63 @@ const FoliateViewer: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const applyMarginAndGap = () => {
+    const viewSettings = getViewSettings(bookKey)!;
+    const viewInsets = getViewInsets(viewSettings);
+    const showDoubleBorder = viewSettings.vertical && viewSettings.doubleBorder;
+    const showDoubleBorderHeader = showDoubleBorder && viewSettings.showHeader;
+    const showDoubleBorderFooter = showDoubleBorder && viewSettings.showFooter;
+    const showTopHeader = viewSettings.showHeader && !viewSettings.vertical;
+    const showBottomFooter = viewSettings.showFooter && !viewSettings.vertical;
+    const moreTopInset = showTopHeader ? Math.max(0, 44 - insets.top) : 0;
+    const moreBottomInset = showBottomFooter ? Math.max(0, 44 - insets.bottom) : 0;
+    const moreRightInset = showDoubleBorderHeader ? 32 : 0;
+    const moreLeftInset = showDoubleBorderFooter ? 32 : 0;
+    const topMargin = (showTopHeader ? insets.top : viewInsets.top) + moreTopInset;
+    const rightMargin = insets.right + moreRightInset;
+    const bottomMargin = (showBottomFooter ? insets.bottom : viewInsets.bottom) + moreBottomInset;
+    const leftMargin = insets.left + moreLeftInset;
+
+    viewRef.current?.renderer.setAttribute('margin-top', `${topMargin}px`);
+    viewRef.current?.renderer.setAttribute('margin-right', `${rightMargin}px`);
+    viewRef.current?.renderer.setAttribute('margin-bottom', `${bottomMargin}px`);
+    viewRef.current?.renderer.setAttribute('margin-left', `${leftMargin}px`);
+    viewRef.current?.renderer.setAttribute('gap', `${viewSettings.gapPercent}%`);
+    if (viewSettings.scrolled) {
+      viewRef.current?.renderer.setAttribute('flow', 'scrolled');
+    }
+  };
+
+  useEffect(() => {
+    if (viewRef.current && viewRef.current.renderer) {
+      const viewSettings = getViewSettings(bookKey)!;
+      viewRef.current.renderer.setStyles?.(getStyles(viewSettings));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [themeCode, isDarkMode]);
+
+  useEffect(() => {
+    if (viewRef.current && viewRef.current.renderer && viewSettings) {
+      applyMarginAndGap();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    insets.top,
+    insets.right,
+    insets.bottom,
+    insets.left,
+    viewSettings?.doubleBorder,
+    viewSettings?.showHeader,
+    viewSettings?.showFooter,
+  ]);
+
   return (
-    <>
-      <div
-        ref={containerRef}
-        className='foliate-viewer h-[100%] w-[100%]'
-        {...mouseHandlers}
-        {...touchHandlers}
-      />
-    </>
+    <div
+      ref={containerRef}
+      className='foliate-viewer h-[100%] w-[100%]'
+      {...mouseHandlers}
+      {...touchHandlers}
+    />
   );
 };
 
