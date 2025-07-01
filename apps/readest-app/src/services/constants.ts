@@ -47,6 +47,7 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   libraryViewMode: 'grid',
   librarySortBy: 'updated',
   librarySortAscending: false,
+  libraryCoverFit: 'crop',
 
   lastSyncedAtBooks: 0,
   lastSyncedAtConfigs: 0,
@@ -157,6 +158,7 @@ export const DEFAULT_VIEW_CONFIG: ViewConfig = {
   showFooter: true,
   showBarsOnScroll: false,
   showRemainingTime: false,
+  showRemainingPages: false,
   showPageNumber: true,
 };
 
@@ -200,6 +202,9 @@ export const CJK_SERIF_FONTS = [
   _('LXGW WenKai GB Screen'),
   _('LXGW WenKai TC'),
   _('GuanKiapTsingKhai-T'),
+  _('Source Han Serif CN VF'),
+  _('Huiwen-mincho'),
+  _('KingHwa_OldSong'),
 ];
 
 export const CJK_SANS_SERIF_FONTS = ['Noto Sans SC', 'Noto Sans TC'];
@@ -496,6 +501,8 @@ export const CJK_FONTS_PATTENS = new RegExp(
     'Song',
     'Ming',
     'FZ',
+    'Huiwen',
+    'KingHwa',
     'FangZheng',
     'WenQuanYi',
     'PingFang',
@@ -548,9 +555,9 @@ export const DEFAULT_STORAGE_QUOTA: UserStorageQuota = {
 };
 
 export const DEFAULT_DAILY_TRANSLATION_QUOTA: UserDailyTranslationQuota = {
-  free: 50 * 1024,
-  plus: 500 * 1024,
-  pro: 1024 * 1024,
+  free: 10 * 1024,
+  plus: 50 * 1024,
+  pro: 200 * 1024,
 };
 
 export const DOUBLE_CLICK_INTERVAL_THRESHOLD_MS = 250;

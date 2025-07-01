@@ -85,6 +85,10 @@ export const isContentURI = (uri: string) => {
   return uri.startsWith('content://');
 };
 
+export const isFileURI = (uri: string) => {
+  return uri.startsWith('file://');
+};
+
 export const isValidURL = (url: string, allowedSchemes: string[] = ['http', 'https']) => {
   try {
     const { protocol } = new URL(url);
@@ -94,6 +98,6 @@ export const isValidURL = (url: string, allowedSchemes: string[] = ['http', 'htt
   }
 };
 
-export const stubTranslation = (key: string) => {
-  return key;
+export const stubTranslation = (stubKey: string) => {
+  return stubKey;
 };

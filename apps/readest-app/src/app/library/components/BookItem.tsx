@@ -11,15 +11,16 @@ import { useEnv } from '@/context/EnvContext';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useResponsiveSize } from '@/hooks/useResponsiveSize';
-import { LibraryViewModeType } from '@/types/settings';
+import { LibraryCoverFitType, LibraryViewModeType } from '@/types/settings';
 import { navigateToLogin } from '@/utils/nav';
 import { formatAuthors } from '@/utils/book';
 import ReadingProgress from './ReadingProgress';
 import BookCover from '@/components/BookCover';
 
 interface BookItemProps {
-  mode: LibraryViewModeType;
   book: Book;
+  mode: LibraryViewModeType;
+  coverFit: LibraryCoverFitType;
   isSelectMode: boolean;
   selectedBooks: string[];
   transferProgress: number | null;
@@ -29,8 +30,9 @@ interface BookItemProps {
 }
 
 const BookItem: React.FC<BookItemProps> = ({
-  mode,
   book,
+  mode,
+  coverFit,
   isSelectMode,
   selectedBooks,
   transferProgress,
@@ -52,18 +54,18 @@ const BookItem: React.FC<BookItemProps> = ({
     <div
       className={clsx(
         'book-item flex',
-        mode === 'grid' && 'h-full flex-col',
+        mode === 'grid' && 'h-full flex-col justify-end',
         mode === 'list' && 'h-28 flex-row gap-4 overflow-hidden',
         appService?.hasContextMenu ? 'cursor-pointer' : '',
       )}
     >
       <div
         className={clsx(
-          'bg-base-100 relative flex aspect-[28/41] items-center justify-center overflow-hidden shadow-md',
+          'relative flex aspect-[28/41] items-center justify-center',
           mode === 'list' && 'min-w-20',
         )}
       >
-        <BookCover mode={mode} book={book} />
+        <BookCover mode={mode} book={book} coverFit={coverFit} />
         {selectedBooks.includes(book.hash) && (
           <div className='absolute inset-0 bg-black opacity-30 transition-opacity duration-300'></div>
         )}
