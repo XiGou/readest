@@ -3,19 +3,20 @@ import { FileSystem, BaseDir, AppPlatform } from '@/types/system';
 import { getCoverFilename } from '@/utils/book';
 import { getOSPlatform, isValidURL } from '@/utils/misc';
 import { RemoteFile } from '@/utils/file';
-
 import { isPWA } from './environment';
-import { BaseAppService } from './appService';
+import { BaseAppService, ResolvedPath } from './appService';
 import { LOCAL_BOOKS_SUBDIR } from './constants';
 
-const resolvePath = (fp: string, base: BaseDir): { baseDir: number; base: BaseDir; fp: string } => {
+const basePrefix = async () => '';
+
+const resolvePath = (path: string, base: BaseDir): ResolvedPath => {
   switch (base) {
     case 'Books':
-      return { baseDir: 0, fp: `${LOCAL_BOOKS_SUBDIR}/${fp}`, base };
+      return { baseDir: 0, basePrefix, fp: `${LOCAL_BOOKS_SUBDIR}/${path}`, base };
     case 'None':
-      return { baseDir: 0, fp, base };
+      return { baseDir: 0, basePrefix, fp: path, base };
     default:
-      return { baseDir: 0, fp: `${base}/${fp}`, base };
+      return { baseDir: 0, basePrefix, fp: `${base}/${path}`, base };
   }
 };
 
@@ -117,10 +118,13 @@ const indexedDBFileSystem: FileSystem = {
       request.onerror = () => reject(request.error);
     });
   },
-  async writeFile(path: string, base: BaseDir, content: string | ArrayBuffer) {
+  async writeFile(path: string, base: BaseDir, content: string | ArrayBuffer | File) {
     const { fp } = resolvePath(path, base);
     const db = await openIndexedDB();
 
+    if (content instanceof File) {
+      content = await content.arrayBuffer();
+    }
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction('files', 'readwrite');
       const store = transaction.objectStore('files');
@@ -151,8 +155,10 @@ const indexedDBFileSystem: FileSystem = {
   async removeDir() {
     // Directories are virtual in IndexedDB; no-op
   },
-  async readDir(path: string) {
+  async readDir(path: string, base: BaseDir) {
+    const { fp } = resolvePath(path, base);
     const db = await openIndexedDB();
+
     return new Promise<{ path: string; isDir: boolean }[]>((resolve, reject) => {
       const transaction = db.transaction('files', 'readonly');
       const store = transaction.objectStore('files');
@@ -162,8 +168,8 @@ const indexedDBFileSystem: FileSystem = {
         const files = request.result as { path: string }[];
         resolve(
           files
-            .filter((file) => file.path.startsWith(path))
-            .map((file) => ({ path: file.path, isDir: false })),
+            .filter((file) => file.path.startsWith(fp))
+            .map((file) => ({ path: file.path.slice(fp.length + 1), isDir: false })),
         );
       };
 
@@ -183,8 +189,10 @@ const indexedDBFileSystem: FileSystem = {
       request.onerror = () => reject(request.error);
     });
   },
-  getPrefix() {
-    return null;
+  async getPrefix(base: BaseDir) {
+    const { basePrefix, fp } = resolvePath('', base);
+    const basePath = await basePrefix();
+    return fp ? `${basePath}/${fp}` : basePath;
   },
 };
 
@@ -194,16 +202,8 @@ export class WebAppService extends BaseAppService {
   override appPlatform = 'web' as AppPlatform;
   override hasSafeAreaInset = isPWA();
 
-  override resolvePath(fp: string, base: BaseDir): { baseDir: number; base: BaseDir; fp: string } {
+  override resolvePath(fp: string, base: BaseDir): ResolvedPath {
     return resolvePath(fp, base);
-  }
-
-  async getInitBooksDir(): Promise<string> {
-    return LOCAL_BOOKS_SUBDIR;
-  }
-
-  async getCacheDir(): Promise<string> {
-    return 'Cache';
   }
 
   async selectDirectory(): Promise<string> {

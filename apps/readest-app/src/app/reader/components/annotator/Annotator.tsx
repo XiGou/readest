@@ -120,7 +120,9 @@ const Annotator: React.FC<{ bookKey: string }> = ({ bookKey }) => {
       detail.doc?.addEventListener('touchstart', handleTouchStart);
       detail.doc?.addEventListener('touchmove', handleTouchmove);
       detail.doc?.addEventListener('touchend', handleTouchEnd);
-      detail.doc?.addEventListener('pointerup', () => handlePointerup(doc, index));
+      detail.doc?.addEventListener('pointerup', (ev: PointerEvent) =>
+        handlePointerup(doc, index, ev),
+      );
       detail.doc?.addEventListener('selectionchange', () => handleSelectionchange(doc, index));
 
       // Disable the default context menu on mobile devices,
@@ -249,7 +251,7 @@ const Annotator: React.FC<{ bookKey: string }> = ({ bookKey }) => {
     try {
       Promise.all(annotations.map((annotation) => view?.addAnnotation(annotation)));
     } catch (e) {
-      console.error(e);
+      console.warn(e);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [progress]);

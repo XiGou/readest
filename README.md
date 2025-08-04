@@ -19,6 +19,7 @@
 <br>
 [![Last commit][badge-last-commit]][link-gh-commits]
 [![Commits][badge-commit-activity]][link-gh-pulse]
+[![Ask DeepWiki][badge-deepwiki]][link-deepwiki]
 
 </div>
 
@@ -56,6 +57,7 @@
 | **File Association and Open With**      | Quickly open files in Readest in your file browser with one-click.                             | ✅         |
 | **Sync across Platforms**               | Synchronize book files, reading progress, notes, and bookmarks across all supported platforms. | ✅         |
 | **Translate with DeepL**                | From a single sentence to the entire book—translate instantly with DeepL.                      | ✅         |
+| **Translate with Yandex**               | Instantly translate text or books using Yandex Translate.                                      | ✅         |
 | **Text-to-Speech (TTS) Support**        | Enjoy smooth, multilingual narration—even within a single book.                                | ✅         |
 | **Library Management**                  | Organize, sort, and manage your entire ebook library.                                          | ✅         |
 | **Code Syntax Highlighting**            | Read software manuals with rich coloring of code examples.                                     | ✅         |
@@ -96,7 +98,16 @@ Stay tuned for continuous improvements and updates! Contributions and suggestion
 
 ## Downloads
 
-The Readest app is available for download! 🥳 🚀
+### Mobile Apps
+
+<div align="center">
+  <a href="https://apps.apple.com/app/id6738622779">
+    <img alt="Download on the App Store" src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg" style="height: 50px;" /></a>&nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="https://play.google.com/store/apps/details?id=com.bilingify.readest">
+    <img alt="Get it on Google Play" src="https://upload.wikimedia.org/wikipedia/commons/7/78/Google_Play_Store_badge_EN.svg" style="height: 50px;" /></a>
+</div>
+
+### Platform-Specific Downloads
 
 - macOS / iOS / iPadOS : Search for "Readest" on the [App Store][link-appstore], also available on TestFlight for beta test (send your Apple ID to <readestapp@gmail.com> to request access).
 - Windows / Linux / Android: Visit [https://readest.com][link-website] or the [Releases on GitHub][link-gh-releases].
@@ -125,13 +136,13 @@ To get started with Readest, follow these steps to clone and build the project.
 ```bash
 git clone https://github.com/readest/readest.git
 cd readest
-git submodule update --init --recursive
 ```
 
 ### 2. Install Dependencies
 
 ```bash
 # might need to rerun this when code is updated
+git submodule update --init --recursive
 pnpm install
 # copy pdfjs-dist to Next.js public directory
 pnpm --filter @readest/readest-app setup-pdfjs
@@ -156,6 +167,8 @@ For Windows targets, “Build Tools for Visual Studio 2022” (or a higher editi
 pnpm tauri dev
 # or start development for the Web app
 pnpm dev-web
+# preview with OpenNext build for the Web app
+pnpm preview
 ```
 
 For Android:
@@ -295,6 +308,7 @@ The following fonts are utilized in this software, either bundled within the app
 [badge-discord]: https://img.shields.io/discord/1314226120886976544?color=5865F2&label=discord&labelColor=black&logo=discord&logoColor=white&style=flat-square
 [badge-hellogithub]: https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=8a5b6ade2aee461a8bd94e59200682a7&claim_uid=eRLUbPOy2qZtDgw&theme=small
 [badge-donate]: https://donate.readest.com/badge.svg
+[badge-deepwiki]: https://deepwiki.com/badge.svg
 [link-donate]: https://donate.readest.com/?tickers=btc%2Ceth%2Csol%2Cusdc
 [link-appstore]: https://apps.apple.com/app/apple-store/id6738622779?pt=127463130&ct=github&mt=8
 [link-website]: https://readest.com?utm_source=github&utm_medium=referral&utm_campaign=readme
@@ -307,3 +321,4 @@ The following fonts are utilized in this software, either bundled within the app
 [link-parallel-read]: https://readest.com/#parallel-read
 [link-koreader]: https://github.com/koreader/koreader
 [link-hellogithub]: https://hellogithub.com/repository/8a5b6ade2aee461a8bd94e59200682a7
+[link-deepwiki]: https://deepwiki.com/readest/readest

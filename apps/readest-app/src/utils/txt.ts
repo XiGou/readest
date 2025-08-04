@@ -1,5 +1,6 @@
-import { getBaseFilename } from './book';
 import { partialMD5 } from './md5';
+import { getBaseFilename } from './book';
+import { detectLanguage } from './lang';
 
 interface Metadata {
   bookTitle: string;
@@ -11,6 +12,7 @@ interface Metadata {
 interface Chapter {
   title: string;
   content: string;
+  text: string;
 }
 
 interface Txt2EpubOptions {
@@ -21,7 +23,7 @@ interface Txt2EpubOptions {
 
 interface ExtractChapterOptions {
   linesBetweenSegments: number;
-  paragraphsPerChapter?: number;
+  fallbackParagraphsPerChapter: number;
 }
 
 interface ConversionResult {
@@ -62,15 +64,21 @@ export class TxtToEpubConverter {
     const authorMatch =
       fileHeader.match(/[【\[]?作者[】\]]?[:：\s]\s*(.+)\r?\n/) ||
       fileHeader.match(/[【\[]?\s*(.+)\s+著\s*[】\]]?\r?\n/);
-    const author = authorMatch ? authorMatch[1]!.trim() : providedAuthor || '';
-    const language = providedLanguage || this.detectLanguage(fileHeader);
+    let matchedAuthor = authorMatch ? authorMatch[1]!.trim() : providedAuthor || '';
+    try {
+      matchedAuthor = matchedAuthor.replace(/^[\p{P}\p{S}]+|[\p{P}\p{S}]+$/gu, '');
+    } catch {}
+    const author = matchedAuthor || providedAuthor || '';
+    const language = providedLanguage || detectLanguage(fileHeader);
+    console.log(`Detected language: ${language}`);
     const identifier = await partialMD5(txtFile);
     const metadata = { bookTitle, author, language, identifier };
 
     let chapters: Chapter[] = [];
-    for (let i = 4; i >= 3; i--) {
+    for (let i = 8; i >= 6; i--) {
       chapters = this.extractChapters(txtContent, metadata, {
         linesBetweenSegments: i,
+        fallbackParagraphsPerChapter: 100,
       });
 
       if (chapters.length === 0) {
@@ -78,12 +86,6 @@ export class TxtToEpubConverter {
       } else if (chapters.length > 1) {
         break;
       }
-    }
-    if (chapters.length === 1) {
-      chapters = this.extractChapters(txtContent, metadata, {
-        linesBetweenSegments: 4,
-        paragraphsPerChapter: 100,
-      });
     }
 
     const blob = await this.createEpub(chapters, metadata);
@@ -101,24 +103,38 @@ export class TxtToEpubConverter {
     option: ExtractChapterOptions,
   ): Chapter[] {
     const { language } = metadata;
-    const { linesBetweenSegments, paragraphsPerChapter } = option;
+    const { linesBetweenSegments, fallbackParagraphsPerChapter } = option;
     const segmentRegex = new RegExp(`(?:\\r?\\n){${linesBetweenSegments},}|-{8,}\r?\n`);
-    let chapterRegex: RegExp;
+    const chapterRegexps: RegExp[] = [];
     if (language === 'zh') {
-      chapterRegex = new RegExp(
-        String.raw`(?:^|\n|\s)` +
-          '(' +
-          [
-            String.raw`第[零〇一二三四五六七八九十0-9][零〇一二三四五六七八九十百千万0-9]*(?:[章卷节回讲篇封])(?:[：:、 　\(\)0-9]*[^\n-]{0,24})(?!\S)`,
-            String.raw`(?:^|\n|\s|《[^》]+》)[一二三四五六七八九十][零〇一二三四五六七八九十百千万]*(?:[：: 　][^\n-]{0,24})(?!\S)`,
-            String.raw`(?:楔子|前言|引言|序言|序章|总论|概论)(?:[：: 　][^\n-]{0,24})?(?!\S)`,
-          ].join('|') +
-          ')',
-        'gu',
+      chapterRegexps.push(
+        new RegExp(
+          String.raw`(?:^|\n)\s*` +
+            '(' +
+            [
+              String.raw`第[零〇一二三四五六七八九十0-9][零〇一二三四五六七八九十百千万0-9]*(?:[章卷节回讲篇封])(?:[：:、 　\(\)0-9]*[^\n-]{0,24})(?!\S)`,
+              String.raw`(?:楔子|前言|简介|引言|序言|序章|总论|概论)(?:[：: 　][^\n-]{0,24})?(?!\S)`,
+            ].join('|') +
+            ')',
+          'gu',
+        ),
+      );
+      chapterRegexps.push(
+        new RegExp(
+          String.raw`(?:^|\n)\s*` +
+            '(' +
+            [
+              String.raw`[一二三四五六七八九十][零〇一二三四五六七八九十百千万]?[：:、 　][^\n-]{0,24}(?=\n|$)`,
+              String.raw`[0-9]+[^\n]{0,16}(?=\n|$)`,
+            ].join('|') +
+            ')',
+          'gu',
+        ),
       );
     } else {
-      chapterRegex =
-        /(?:^|\n|\s)(?:(Chapter|Part)\s+(\d+|[IVXLCDM]+)(?:[:.\-–—]?\s+[^\n]*)?|(?:Prologue|Epilogue|Introduction|Foreword)(?:[:.\-–—]?\s+[^\n]*)?)(?=\s|$)/gi;
+      chapterRegexps.push(
+        /(?:^|\n|\s)(?:(Chapter|Part)\s+(\d+|[IVXLCDM]+)(?:[:.\-–—]?\s+[^\n]*)?|(?:Prologue|Epilogue|Introduction|Foreword)(?:[:.\-–—]?\s+[^\n]*)?)(?=\s|$)/gi,
+      );
     }
 
     const formatSegment = (segment: string): string => {
@@ -149,27 +165,43 @@ export class TxtToEpubConverter {
         return acc;
       }, []);
 
+    const isGoodMatches = (matches: string[], maxLength: number = 100000): boolean => {
+      const meaningfulParts = matches.filter((part) => part.trim().length > 0);
+      if (meaningfulParts.length <= 1) return false;
+
+      const hasLongParts = meaningfulParts.some((part) => part.length > maxLength);
+      return !hasLongParts;
+    };
+
     const chapters: Chapter[] = [];
     const segments = txtContent.split(segmentRegex);
     for (const segment of segments) {
       const trimmedSegment = segment.replace(/<!--.*?-->/g, '').trim();
       if (!trimmedSegment) continue;
 
-      if (paragraphsPerChapter && paragraphsPerChapter > 0) {
+      const segmentChapters: Chapter[] = [];
+      let matches: string[] = [];
+      for (const chapterRegex of chapterRegexps) {
+        const tryMatches = trimmedSegment.split(chapterRegex);
+        if (isGoodMatches(tryMatches)) {
+          matches = joinAroundUndefined(tryMatches);
+          break;
+        }
+      }
+
+      if (matches.length === 0 && fallbackParagraphsPerChapter > 0) {
         const paragraphs = trimmedSegment.split(/\n+/);
         const totalParagraphs = paragraphs.length;
-        for (let i = 0; i < totalParagraphs; i += paragraphsPerChapter) {
-          const chunks = paragraphs.slice(i, i + paragraphsPerChapter);
+        for (let i = 0; i < totalParagraphs; i += fallbackParagraphsPerChapter) {
+          const chunks = paragraphs.slice(i, i + fallbackParagraphsPerChapter);
           const formattedSegment = formatSegment(chunks.join('\n'));
           const title = `${chapters.length + 1}`;
           const content = `<h2>${title}</h2><p>${formattedSegment}</p>`;
-          chapters.push({ title, content });
+          chapters.push({ title, content, text: chunks.join('\n') });
         }
         continue;
       }
 
-      const segmentChapters = [];
-      const matches = joinAroundUndefined(trimmedSegment.split(chapterRegex));
       for (let j = 1; j < matches.length; j += 2) {
         const title = matches[j]?.trim() || '';
         const content = matches[j + 1]?.trim() || '';
@@ -186,6 +218,7 @@ export class TxtToEpubConverter {
         segmentChapters.push({
           title: escapeXml(title),
           content: `${headTitle}<p>${formattedSegment}</p>`,
+          text: content,
         });
       }
 
@@ -199,6 +232,7 @@ export class TxtToEpubConverter {
         segmentChapters.unshift({
           title: escapeXml(segmentTitle),
           content: `<h3></h3><p>${formattedSegment}</p>`,
+          text: initialContent,
         });
       }
       chapters.push(...segmentChapters);
@@ -293,9 +327,10 @@ export class TxtToEpubConverter {
     // Add chapter files
     for (let i = 0; i < chapters.length; i++) {
       const chapter = chapters[i]!;
+      const lang = detectLanguage(chapter.text);
       const chapterContent = `<?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
-        <html xmlns="http://www.w3.org/1999/xhtml" lang="zh">
+        <html xmlns="http://www.w3.org/1999/xhtml" lang="${lang}" xml:lang="${lang}">
           <head>
             <title>${chapter.title}</title>
             <link rel="stylesheet" type="text/css" href="../style.css"/>
@@ -395,26 +430,6 @@ export class TxtToEpubConverter {
     }
 
     return 'utf-8';
-  }
-
-  private detectLanguage(fileHeader: string): string {
-    const sample = fileHeader;
-    let chineseCount = 0;
-    for (let i = 0; i < sample.length; i++) {
-      const code = sample.charCodeAt(i);
-      if (
-        (code >= 0x4e00 && code <= 0x9fff) ||
-        (code >= 0x3400 && code <= 0x4dbf) ||
-        (code >= 0x20000 && code <= 0x2a6df)
-      ) {
-        chineseCount++;
-      }
-    }
-    if (chineseCount / sample.length > 0.05) {
-      return 'zh';
-    }
-
-    return 'en';
   }
 
   private extractBookTitle(filename: string): string {

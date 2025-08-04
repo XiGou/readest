@@ -4,12 +4,14 @@
   "repository": "readest/readest",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "tauri": "pnpm --filter @readest/readest-app tauri"
+    "tauri": "pnpm --filter @readest/readest-app tauri",
+    "dev-web": "pnpm --filter @readest/readest-app dev-web"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.9.1",
     "@sindresorhus/tsconfig": "^6.0.0",
+    "caniuse-lite": "^1.0.30001731",
     "eslint": "^9.28.0",
     "eslint-config-prettier": "^9.1.0",
     "husky": "^9.1.6",

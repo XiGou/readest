@@ -31,7 +31,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
   const { getConfig, getBookData } = useBookDataStore();
   const { getProgress, getViewState, getViewSettings } = useReaderStore();
   const { setGridInsets, hoveredBookKey } = useReaderStore();
-  const { isSideBarVisible, sideBarBookKey } = useSidebarStore();
+  const { sideBarBookKey } = useSidebarStore();
   const { isFontLayoutSettingsDialogOpen, setFontLayoutSettingsDialogOpen } = useSettingsStore();
 
   const screenInsets = useSafeAreaInsets();
@@ -70,7 +70,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
 
   return (
     <div
-      className={clsx('relative grid h-full flex-grow')}
+      className={clsx('books-grid bg-base-100 relative grid h-full flex-grow')}
       style={{
         gridTemplateColumns: gridTemplate.columns,
         gridTemplateRows: gridTemplate.rows,
@@ -106,7 +106,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
             key={bookKey}
             className={clsx(
               'relative h-full w-full overflow-hidden',
-              !isSideBarVisible && appService?.hasRoundedWindow && 'rounded-window',
+              appService?.hasRoundedWindow && 'rounded-window',
             )}
           >
             {isBookmarked && !hoveredBookKey && <Ribbon width={`${horizontalGapPercent}%`} />}
@@ -153,11 +153,12 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
                 showFooter={showFooter}
                 borderColor={viewSettings.borderColor}
                 horizontalGap={horizontalGapPercent}
-                contentInsets={contentInsets}
+                insets={viewInsets}
               />
             )}
             {showHeader && (
               <SectionInfo
+                bookKey={bookKey}
                 section={sectionLabel}
                 showDoubleBorder={viewSettings.vertical && viewSettings.doubleBorder}
                 isScrolled={viewSettings.scrolled}

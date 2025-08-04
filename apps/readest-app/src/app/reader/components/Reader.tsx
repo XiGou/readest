@@ -111,14 +111,15 @@ const Reader: React.FC<{ ids?: string }> = ({ ids }) => {
     settings.globalReadSettings && (
       <div
         className={clsx(
-          `reader-page bg-base-100 text-base-content select-none`,
-          !isSideBarVisible && appService?.hasRoundedWindow && 'rounded-window',
+          `reader-page text-base-content select-none overflow-hidden`,
+          appService?.isLinuxApp && 'window-border',
+          appService?.hasRoundedWindow && 'rounded-window',
         )}
       >
         <Suspense>
           <ReaderContent ids={ids} settings={settings} />
           <AboutWindow />
-          {appService?.isAndroidApp && <UpdaterWindow />}
+          <UpdaterWindow />
           <Toast />
         </Suspense>
       </div>

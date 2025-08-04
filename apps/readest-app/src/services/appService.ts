@@ -16,9 +16,10 @@ import {
   formatAuthors,
   getFilename,
   getPrimaryLanguage,
+  getLibraryBackupFilename,
 } from '@/utils/book';
 import { partialMD5 } from '@/utils/md5';
-import { BookDoc, DocumentLoader } from '@/libs/document';
+import { BookDoc, DocumentLoader, EXTS } from '@/libs/document';
 import {
   DEFAULT_BOOK_LAYOUT,
   DEFAULT_BOOK_STYLE,
@@ -36,6 +37,7 @@ import {
   DEFAULT_SCREEN_CONFIG,
   DEFAULT_TRANSLATOR_CONFIG,
 } from './constants';
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { getOSPlatform, getTargetLang, isCJKEnv, isContentURI, isValidURL } from '@/utils/misc';
 import { deserializeConfig, serializeConfig } from '@/utils/serializer';
 import { downloadFile, uploadFile, deleteFile, createProgressHandler } from '@/libs/storage';
@@ -43,6 +45,13 @@ import { ClosableFile } from '@/utils/file';
 import { ProgressHandler } from '@/utils/transfer';
 import { TxtToEpubConverter } from '@/utils/txt';
 import { BOOK_FILE_NOT_FOUND_ERROR } from './errors';
+
+export type ResolvedPath = {
+  baseDir: number;
+  basePrefix: () => Promise<string>;
+  fp: string;
+  base: BaseDir;
+};
 
 export abstract class BaseAppService implements AppService {
   osPlatform: OsPlatform = getOSPlatform();
@@ -63,14 +72,14 @@ export abstract class BaseAppService implements AppService {
   hasSafeAreaInset = false;
   hasHaptics = false;
   hasUpdater = false;
+  hasOrientationLock = false;
+  distChannel = 'readest';
 
   abstract fs: FileSystem;
 
-  abstract resolvePath(fp: string, base: BaseDir): { baseDir: number; base: BaseDir; fp: string };
+  abstract resolvePath(fp: string, base: BaseDir): ResolvedPath;
   abstract getCoverImageUrl(book: Book): string;
   abstract getCoverImageBlobUrl(book: Book): Promise<string>;
-  abstract getInitBooksDir(): Promise<string>;
-  abstract getCacheDir(): Promise<string>;
   abstract selectDirectory(): Promise<string>;
   abstract selectFiles(name: string, extensions: string[]): Promise<string[]>;
 
@@ -98,7 +107,7 @@ export abstract class BaseAppService implements AppService {
       settings = JSON.parse(txt as string);
       const version = settings.version ?? 0;
       if (this.isAppDataSandbox || version < SYSTEM_SETTINGS_VERSION) {
-        settings.localBooksDir = await this.getInitBooksDir();
+        settings.localBooksDir = await this.fs.getPrefix('Books');
         settings.version = SYSTEM_SETTINGS_VERSION;
       }
       settings = { ...DEFAULT_SYSTEM_SETTINGS, ...settings };
@@ -111,7 +120,7 @@ export abstract class BaseAppService implements AppService {
       settings = {
         ...DEFAULT_SYSTEM_SETTINGS,
         version: SYSTEM_SETTINGS_VERSION,
-        localBooksDir: await this.getInitBooksDir(),
+        localBooksDir: await this.fs.getPrefix('Books'),
         globalReadSettings: {
           ...DEFAULT_READSETTINGS,
           ...(this.isMobile ? DEFAULT_MOBILE_READSETTINGS : {}),
@@ -125,15 +134,6 @@ export abstract class BaseAppService implements AppService {
     }
 
     this.localBooksDir = settings.localBooksDir;
-    const cacheDir = await this.getCacheDir();
-    this.fs.getPrefix = (baseDir: BaseDir) => {
-      if (baseDir === 'Books') {
-        return this.localBooksDir;
-      } else if (baseDir === 'Cache') {
-        return cacheDir;
-      }
-      return null;
-    };
     return settings;
   }
 
@@ -202,6 +202,7 @@ export abstract class BaseAppService implements AppService {
         hash,
         format,
         title: formatTitle(loadedBook.metadata.title),
+        sourceTitle: formatTitle(loadedBook.metadata.title),
         author: formatAuthors(loadedBook.metadata.author, loadedBook.metadata.language),
         primaryLanguage: getPrimaryLanguage(loadedBook.metadata.language),
         createdAt: existingBook ? existingBook.createdAt : Date.now(),
@@ -212,9 +213,11 @@ export abstract class BaseAppService implements AppService {
       };
       // update book metadata when reimporting the same book
       if (existingBook) {
-        existingBook.title = book.title;
-        existingBook.author = book.author;
+        existingBook.title = existingBook.title ?? book.title;
+        existingBook.sourceTitle = existingBook.sourceTitle ?? book.sourceTitle;
+        existingBook.author = existingBook.author ?? book.author;
         existingBook.primaryLanguage = existingBook.primaryLanguage ?? book.primaryLanguage;
+        existingBook.downloadedAt = Date.now();
       }
 
       if (!(await this.fs.exists(getDir(book), 'Books'))) {
@@ -270,16 +273,18 @@ export abstract class BaseAppService implements AppService {
     }
   }
 
-  async deleteBook(book: Book, includingUploaded = false): Promise<void> {
-    const fps = [getRemoteBookFilename(book), getCoverFilename(book)];
-    const localDeleteFps = [getLocalBookFilename(book), getCoverFilename(book)];
-    for (const fp of localDeleteFps) {
-      if (await this.fs.exists(fp, 'Books')) {
-        await this.fs.removeFile(fp, 'Books');
+  async deleteBook(book: Book, includingUploaded = false, includingLocal = true): Promise<void> {
+    if (includingLocal) {
+      const localDeleteFps = [getLocalBookFilename(book), getCoverFilename(book)];
+      for (const fp of localDeleteFps) {
+        if (await this.fs.exists(fp, 'Books')) {
+          await this.fs.removeFile(fp, 'Books');
+        }
       }
     }
-    for (const fp of fps) {
-      if (includingUploaded) {
+    if (includingUploaded) {
+      const fps = [getRemoteBookFilename(book), getCoverFilename(book)];
+      for (const fp of fps) {
         console.log('Deleting uploaded file:', fp);
         const cfp = `${CLOUD_BOOKS_SUBDIR}/${fp}`;
         try {
@@ -289,8 +294,12 @@ export abstract class BaseAppService implements AppService {
         }
       }
     }
-    book.deletedAt = Date.now();
-    book.downloadedAt = null;
+
+    if (includingLocal) {
+      book.deletedAt = Date.now();
+      book.downloadedAt = null;
+      book.coverDownloadedAt = null;
+    }
     if (includingUploaded) {
       book.uploadedAt = null;
     }
@@ -349,6 +358,7 @@ export abstract class BaseAppService implements AppService {
       book.updatedAt = Date.now();
       book.uploadedAt = Date.now();
       book.downloadedAt = Date.now();
+      book.coverDownloadedAt = Date.now();
     } else {
       throw new Error('Book file not uploaded');
     }
@@ -369,12 +379,19 @@ export abstract class BaseAppService implements AppService {
     }
   }
 
-  async downloadBook(book: Book, onlyCover = false, onProgress?: ProgressHandler): Promise<void> {
+  async downloadBook(
+    book: Book,
+    onlyCover = false,
+    redownload = false,
+    onProgress?: ProgressHandler,
+  ): Promise<void> {
     let bookDownloaded = false;
+    let bookCoverDownloaded = false;
     const completedFiles = { count: 0 };
     let toDownloadFpCount = 0;
-    const needDownCover = !(await this.fs.exists(getCoverFilename(book), 'Books'));
-    const needDownBook = !onlyCover && !(await this.fs.exists(getLocalBookFilename(book), 'Books'));
+    const needDownCover = !(await this.fs.exists(getCoverFilename(book), 'Books')) || redownload;
+    const needDownBook =
+      (!onlyCover && !(await this.fs.exists(getLocalBookFilename(book), 'Books'))) || redownload;
     if (needDownCover) {
       toDownloadFpCount++;
     }
@@ -393,11 +410,15 @@ export abstract class BaseAppService implements AppService {
         const lfp = getCoverFilename(book);
         const cfp = `${CLOUD_BOOKS_SUBDIR}/${lfp}`;
         await this.downloadCloudFile(lfp, cfp, handleProgress);
-        completedFiles.count++;
+        bookCoverDownloaded = true;
       }
     } catch (error) {
       // don't throw error here since some books may not have cover images at all
       console.log(`Failed to download cover file for book: '${book.title}'`, error);
+    } finally {
+      if (needDownCover) {
+        completedFiles.count++;
+      }
     }
 
     if (needDownBook) {
@@ -411,6 +432,9 @@ export abstract class BaseAppService implements AppService {
     // some books may not have cover image, so we need to check if the book is downloaded
     if (bookDownloaded || (!onlyCover && !needDownBook)) {
       book.downloadedAt = Date.now();
+    }
+    if ((bookCoverDownloaded || !needDownCover) && !book.coverDownloadedAt) {
+      book.coverDownloadedAt = Date.now();
     }
   }
 
@@ -452,7 +476,19 @@ export abstract class BaseAppService implements AppService {
     } else if (book.url) {
       file = await this.fs.openFile(book.url, 'None');
     } else {
-      throw new Error(BOOK_FILE_NOT_FOUND_ERROR);
+      // 0.9.64 has a bug that book.title might be modified but the filename is not updated
+      const bookDir = getDir(book);
+      const files = await this.fs.readDir(getDir(book), 'Books');
+      if (files.length > 0) {
+        const bookFile = files.find((f) => f.path.endsWith(`.${EXTS[book.format]}`));
+        if (bookFile) {
+          file = await this.fs.openFile(`${bookDir}/${bookFile.path}`, 'Books');
+        } else {
+          throw new Error(BOOK_FILE_NOT_FOUND_ERROR);
+        }
+      } else {
+        throw new Error(BOOK_FILE_NOT_FOUND_ERROR);
+      }
     }
     return { book, file, config: await this.loadBookConfig(book, settings) };
   }
@@ -501,17 +537,44 @@ export abstract class BaseAppService implements AppService {
       : this.getCoverImageUrl(book);
   }
 
+  private async loadJSONFile(
+    filename: string,
+  ): Promise<{ success: boolean; data?: unknown; error?: unknown }> {
+    try {
+      const txt = await this.fs.readFile(filename, 'Books', 'text');
+      if (!txt || typeof txt !== 'string' || txt.trim().length === 0) {
+        return { success: false, error: 'File is empty or invalid' };
+      }
+      try {
+        const data = JSON.parse(txt as string);
+        return { success: true, data };
+      } catch (parseError) {
+        return { success: false, error: `JSON parse error: ${parseError}` };
+      }
+    } catch (error) {
+      return { success: false, error };
+    }
+  }
+
   async loadLibraryBooks(): Promise<Book[]> {
     console.log('Loading library books...');
     let books: Book[] = [];
     const libraryFilename = getLibraryFilename();
+    const backupFilename = getLibraryBackupFilename();
 
-    try {
-      const txt = await this.fs.readFile(libraryFilename, 'Books', 'text');
-      books = JSON.parse(txt as string);
-    } catch {
-      await this.fs.createDir('', 'Books', true);
-      await this.fs.writeFile(libraryFilename, 'Books', '[]');
+    const mainResult = await this.loadJSONFile(libraryFilename);
+    if (mainResult.success) {
+      books = mainResult.data as Book[];
+    } else {
+      const backupResult = await this.loadJSONFile(backupFilename);
+      if (backupResult.success) {
+        books = backupResult.data as Book[];
+        console.warn('Loaded library from backup file:', backupFilename);
+      } else {
+        await this.fs.createDir('', 'Books', true);
+        await this.fs.writeFile(libraryFilename, 'Books', '[]');
+        await this.fs.writeFile(backupFilename, 'Books', '[]');
+      }
     }
 
     await Promise.all(
@@ -528,6 +591,51 @@ export abstract class BaseAppService implements AppService {
   async saveLibraryBooks(books: Book[]): Promise<void> {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const libraryBooks = books.map(({ coverImageUrl, ...rest }) => rest);
-    await this.fs.writeFile(getLibraryFilename(), 'Books', JSON.stringify(libraryBooks));
+    const jsonData = JSON.stringify(libraryBooks, null, 2);
+    const libraryFilename = getLibraryFilename();
+    const backupFilename = getLibraryBackupFilename();
+
+    const saveResults = await Promise.allSettled([
+      this.fs.writeFile(backupFilename, 'Books', jsonData),
+      this.fs.writeFile(libraryFilename, 'Books', jsonData),
+    ]);
+    const backupSuccess = saveResults[0].status === 'fulfilled';
+    const mainSuccess = saveResults[1].status === 'fulfilled';
+    if (!backupSuccess || !mainSuccess) {
+      throw new Error('Failed to save library books');
+    }
+  }
+
+  private imageToArrayBuffer(imageUrl?: string, imageFile?: string): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+      if (!imageUrl && !imageFile) {
+        reject(new Error('No image URL or file provided'));
+        return;
+      }
+      if (this.appPlatform === 'web' && imageUrl && imageUrl.startsWith('blob:')) {
+        fetch(imageUrl)
+          .then((response) => response.arrayBuffer())
+          .then((buffer) => resolve(buffer))
+          .catch((error) => reject(error));
+      } else if (this.appPlatform === 'tauri' && imageFile) {
+        this.fs
+          .openFile(imageFile, 'None')
+          .then((file) => file.arrayBuffer())
+          .then((buffer) => resolve(buffer))
+          .catch((error) => reject(error));
+      } else if (this.appPlatform === 'tauri' && imageUrl) {
+        tauriFetch(imageUrl, { method: 'GET' })
+          .then((response) => response.arrayBuffer())
+          .then((buffer) => resolve(buffer))
+          .catch((error) => reject(error));
+      } else {
+        reject(new Error('Unsupported platform or missing image data'));
+      }
+    });
+  }
+
+  async updateCoverImage(book: Book, imageUrl?: string, imageFile?: string): Promise<void> {
+    const arrayBuffer = await this.imageToArrayBuffer(imageUrl, imageFile);
+    await this.fs.writeFile(getCoverFilename(book), 'Books', arrayBuffer);
   }
 }

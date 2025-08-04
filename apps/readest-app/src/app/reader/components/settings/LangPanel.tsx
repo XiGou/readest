@@ -7,9 +7,10 @@ import { useReaderStore } from '@/store/readerStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { saveViewSettings } from '../../utils/viewSettingsHelper';
 import { getTranslators } from '@/services/translators';
-import { TRANSLATED_LANGS } from '@/services/constants';
+import { TRANSLATED_LANGS, TRANSLATOR_LANGS } from '@/services/constants';
 import { SettingsPanelPanelProp } from './SettingsDialog';
 import { useResetViewSettings } from '../../hooks/useResetSettings';
+import { saveAndReload } from '@/utils/reload';
 import { initDayjs } from '@/utils/time';
 import Select from '@/components/Select';
 
@@ -24,6 +25,7 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
   const [translationEnabled, setTranslationEnabled] = useState(viewSettings.translationEnabled!);
   const [translationProvider, setTranslationProvider] = useState(viewSettings.translationProvider!);
   const [translateTargetLang, setTranslateTargetLang] = useState(viewSettings.translateTargetLang!);
+  const [showTranslateSource, setShowTranslateSource] = useState(viewSettings.showTranslateSource!);
 
   const resetToDefaults = useResetViewSettings();
 
@@ -52,8 +54,7 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
     };
   };
 
-  const getLangOptions = () => {
-    const langs = TRANSLATED_LANGS as Record<string, string>;
+  const getLangOptions = (langs: Record<string, string>) => {
     const options = Object.entries(langs).map(([value, label]) => ({ value, label }));
     options.sort((a, b) => a.label.localeCompare(b.label));
     options.unshift({ value: '', label: _('System Language') });
@@ -101,7 +102,7 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
 
   const getCurrentTargetLangOption = () => {
     const value = translateTargetLang;
-    const availableOptions = getLangOptions();
+    const availableOptions = getLangOptions(TRANSLATOR_LANGS);
     return availableOptions.find((o) => o.value === value) || availableOptions[0]!;
   };
 
@@ -127,8 +128,18 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
     saveViewSettings(envConfig, bookKey, 'translationEnabled', translationEnabled, true, false);
     viewSettings.translationEnabled = translationEnabled;
     setViewSettings(bookKey, { ...viewSettings });
+    if (!showTranslateSource && !translationEnabled) {
+      saveAndReload();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [translationEnabled]);
+
+  useEffect(() => {
+    if (showTranslateSource === viewSettings.showTranslateSource) return;
+    saveViewSettings(envConfig, bookKey, 'showTranslateSource', showTranslateSource, false, false);
+    saveAndReload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTranslateSource]);
 
   return (
     <div className={clsx('my-4 w-full space-y-6')}>
@@ -141,7 +152,7 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
               <Select
                 value={getCurrentUILangOption().value}
                 onChange={handleSelectUILang}
-                options={getLangOptions()}
+                options={getLangOptions(TRANSLATED_LANGS)}
               />
             </div>
           </div>
@@ -163,6 +174,17 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
             </div>
 
             <div className='config-item'>
+              <span className=''>{_('Show Source Text')}</span>
+              <input
+                type='checkbox'
+                className='toggle'
+                checked={showTranslateSource}
+                disabled={!translationEnabled}
+                onChange={() => setShowTranslateSource(!showTranslateSource)}
+              />
+            </div>
+
+            <div className='config-item'>
               <span className=''>{_('Translation Service')}</span>
               <Select
                 value={getCurrentTranslationProviderOption().value}
@@ -177,7 +199,7 @@ const LangPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
               <Select
                 value={getCurrentTargetLangOption().value}
                 onChange={handleSelectTargetLang}
-                options={getLangOptions()}
+                options={getLangOptions(TRANSLATOR_LANGS)}
                 disabled={!translationEnabled}
               />
             </div>

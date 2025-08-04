@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "enables the default permissions",
-  "windows": ["main", "updater"],
+  "windows": ["main", "updater", "reader-*"],
   "permissions": [
     "core:default",
     "fs:default",
@@ -43,7 +43,18 @@
       "identifier": "fs:allow-cache-read",
       "allow": [
         {
-          "path": "$CACHEDIR/**/*"
+          "path": "$APPCACHE/**/*"
+        },
+        {
+          "path": "/private/var/mobile/Containers/Data/Application/**/*"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-cache-write",
+      "allow": [
+        {
+          "path": "$APPCACHE/**/*"
         },
         {
           "path": "/private/var/mobile/Containers/Data/Application/**/*"
@@ -69,6 +80,9 @@
           "url": "https://edge.microsoft.com"
         },
         {
+          "url": "https://translate.toil.cc"
+        },
+        {
           "url": "https://*.microsofttranslator.com"
         },
         {
@@ -91,6 +105,7 @@
     "core:window:allow-toggle-maximize",
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-always-on-top",
+    "core:window:allow-destroy",
     "core:webview:allow-create-webview-window",
     "core:path:allow-resolve-directory",
     "log:default",

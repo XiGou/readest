@@ -57,7 +57,7 @@ const TOCItemView = React.memo<{
   );
 
   return (
-    <span
+    <div
       role='treeitem'
       tabIndex={-1}
       onClick={item.href ? handleClickItem : undefined}
@@ -76,7 +76,7 @@ const TOCItemView = React.memo<{
       }}
     >
       {item.subitems && (
-        <span
+        <div
           onClick={handleToggleExpand}
           className='inline-block cursor-pointer'
           style={{
@@ -85,9 +85,9 @@ const TOCItemView = React.memo<{
           }}
         >
           {createExpanderIcon(flatItem.isExpanded || false)}
-        </span>
+        </div>
       )}
-      <span
+      <div
         className='ms-2 truncate text-ellipsis'
         style={{
           maxWidth: 'calc(100% - 24px)',
@@ -96,13 +96,13 @@ const TOCItemView = React.memo<{
         }}
       >
         {item.label}
-      </span>
+      </div>
       {item.location && (
-        <span className='text-base-content/50 ms-auto ps-1 text-xs sm:pe-1'>
+        <div className='text-base-content/50 ms-auto ps-1 text-xs sm:pe-1'>
           {item.location.current + 1}
-        </span>
+        </div>
       )}
-    </span>
+    </div>
   );
 });
 

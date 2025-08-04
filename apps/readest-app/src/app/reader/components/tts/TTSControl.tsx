@@ -171,19 +171,22 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
       return;
     }
 
-    let ttsFromRange = range || progress.range;
-    if (viewSettings.ttsLocation) {
+    let ttsFromRange = range;
+    if (!ttsFromRange && viewSettings.ttsLocation) {
       const { location } = progress;
       const ttsCfi = viewSettings.ttsLocation;
       const start = CFI.collapse(location);
       const end = CFI.collapse(location, true);
       if (CFI.compare(start, ttsCfi) * CFI.compare(end, ttsCfi) <= 0) {
         const { index, anchor } = view.resolveCFI(ttsCfi);
-        const { doc } = view.renderer.getContents().find((x) => (x.index = index)) || {};
+        const { doc } = view.renderer.getContents().find((x) => x.index === index) || {};
         if (doc) {
-          ttsFromRange = anchor(doc) || ttsFromRange;
+          ttsFromRange = anchor(doc);
         }
       }
+    }
+    if (!ttsFromRange) {
+      ttsFromRange = progress.range;
     }
 
     const primaryLang = bookData.book.primaryLanguage;
@@ -192,9 +195,6 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
       ttsControllerRef.current.stop();
       ttsControllerRef.current = null;
     }
-
-    setTTSEnabled(bookKey, true);
-    setShowIndicator(true);
 
     try {
       if (appService?.isIOSApp) {
@@ -209,11 +209,7 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
       await ttsController.initViewTTS();
       const ssml = view.tts?.from(ttsFromRange);
       if (ssml) {
-        let lang = parseSSMLLang(ssml) || 'en';
-        // We will not trust 'en' language from ssml, as it may be a fallback or hardcoded value
-        if (lang === 'en' && primaryLang && primaryLang !== 'en') {
-          lang = primaryLang.split('-')[0]!;
-        }
+        const lang = parseSSMLLang(ssml, primaryLang) || 'en';
         setIsPlaying(true);
         setTtsLang(lang);
 
@@ -224,9 +220,11 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
         setTtsController(ttsController);
       }
       setTtsClientsInitialized(true);
+      setTTSEnabled(bookKey, true);
+      setShowIndicator(true);
     } catch (error) {
       eventDispatcher.dispatch('toast', {
-        message: _('TTS not supported in this device'),
+        message: _('TTS not supported for this document'),
         type: 'error',
       });
       console.error(error);

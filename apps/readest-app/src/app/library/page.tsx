@@ -2,19 +2,27 @@
 
 import clsx from 'clsx';
 import * as React from 'react';
-import { useState, useRef, useEffect, Suspense } from 'react';
+import { useState, useRef, useEffect, Suspense, useCallback } from 'react';
 import { ReadonlyURLSearchParams, useRouter, useSearchParams } from 'next/navigation';
+import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from 'overlayscrollbars-react';
+import 'overlayscrollbars/overlayscrollbars.css';
 
 import { Book } from '@/types/book';
 import { AppService } from '@/types/system';
 import { navigateToLogin, navigateToReader } from '@/utils/nav';
-import { getFilename, listFormater } from '@/utils/book';
+import {
+  formatAuthors,
+  formatTitle,
+  getFilename,
+  getPrimaryLanguage,
+  listFormater,
+} from '@/utils/book';
 import { eventDispatcher } from '@/utils/event';
 import { ProgressPayload } from '@/utils/transfer';
 import { throttle } from '@/utils/throttle';
 import { parseOpenWithFiles } from '@/helpers/openWith';
-import { isTauriAppPlatform } from '@/services/environment';
-import { checkForAppUpdates } from '@/helpers/updater';
+import { isTauriAppPlatform, isWebAppPlatform } from '@/services/environment';
+import { checkForAppUpdates, checkAppReleaseNotes } from '@/helpers/updater';
 import { FILE_ACCEPT_FORMATS, SUPPORTED_FILE_EXTS } from '@/services/constants';
 import { impactFeedback } from '@tauri-apps/plugin-haptics';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
@@ -33,7 +41,6 @@ import { useSafeAreaInsets } from '@/hooks/useSafeAreaInsets';
 import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 import { useOpenWithBooks } from '@/hooks/useOpenWithBooks';
 import { lockScreenOrientation } from '@/utils/bridge';
-import { mountAdditionalFonts } from '@/utils/font';
 import {
   tauriHandleSetAlwaysOnTop,
   tauriHandleToggleFullScreen,
@@ -42,11 +49,12 @@ import {
 
 import { AboutWindow } from '@/components/AboutWindow';
 import { UpdaterWindow } from '@/components/UpdaterWindow';
+import { BookMetadata } from '@/libs/document';
+import { BookDetailModal } from '@/components/metadata';
 import { Toast } from '@/components/Toast';
 import Spinner from '@/components/Spinner';
 import LibraryHeader from './components/LibraryHeader';
 import Bookshelf from './components/Bookshelf';
-import BookDetailModal from '@/components/BookDetailModal';
 import useShortcuts from '@/hooks/useShortcuts';
 import DropIndicator from '@/components/DropIndicator';
 
@@ -84,7 +92,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const [pendingNavigationBookIds, setPendingNavigationBookIds] = useState<string[] | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const demoBooks = useDemoBooks();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const osRef = useRef<OverlayScrollbarsComponentRef>(null);
+  const containerRef: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
   const pageRef = useRef<HTMLDivElement>(null);
 
   useTheme({ systemUIVisible: true, appThemeColor: 'base-200' });
@@ -114,13 +123,11 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   });
 
   useEffect(() => {
-    mountAdditionalFonts(document);
-  }, []);
-
-  useEffect(() => {
     const doCheckAppUpdates = async () => {
       if (appService?.hasUpdater && settings.autoCheckUpdates) {
         await checkForAppUpdates(_);
+      } else if (appService?.hasUpdater === false) {
+        checkAppReleaseNotes();
       }
     };
     if (settings.alwaysOnTop) {
@@ -128,7 +135,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     }
     doCheckAppUpdates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings]);
+  }, [appService?.hasUpdater, settings]);
 
   useEffect(() => {
     if (appService?.isMobileApp) {
@@ -186,6 +193,28 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       handleDropedFiles(files);
     }
   };
+
+  const handleRefreshLibrary = useCallback(async () => {
+    const appService = await envConfig.getAppService();
+    const settings = await appService.loadSettings();
+    const library = await appService.loadLibraryBooks();
+    setSettings(settings);
+    setLibrary(library);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [envConfig, appService]);
+
+  useEffect(() => {
+    if (appService?.hasWindow) {
+      const currentWebview = getCurrentWebview();
+      const unlisten = currentWebview.listen('close-reader-window', async () => {
+        handleRefreshLibrary();
+      });
+      return () => {
+        unlisten.then((fn) => fn());
+      };
+    }
+    return;
+  }, [appService, handleRefreshLibrary]);
 
   useEffect(() => {
     const libraryPage = document.querySelector('.library-page');
@@ -287,7 +316,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         navigateToReader(router, bookIds);
       }
     }
-  }, [pendingNavigationBookIds, router]);
+  }, [pendingNavigationBookIds, appService, router]);
 
   useEffect(() => {
     if (isInitiating.current) return;
@@ -315,12 +344,15 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
 
       // Reuse the library from the store when we return from the reader
       const library = libraryBooks.length > 0 ? libraryBooks : await appService.loadLibraryBooks();
-      setCheckOpenWithBooks(checkOpenWithBooks && (await handleOpenWithBooks(appService, library)));
-      setCheckLastOpenBooks(
-        checkLastOpenBooks &&
-          settings.openLastBooks &&
-          (await handleOpenLastBooks(appService, settings.lastOpenBooks, library)),
-      );
+      let opened = false;
+      if (checkOpenWithBooks) {
+        opened = await handleOpenWithBooks(appService, library);
+      }
+      setCheckOpenWithBooks(opened);
+      if (!opened && checkLastOpenBooks && settings.openLastBooks) {
+        opened = await handleOpenLastBooks(appService, settings.lastOpenBooks, library);
+      }
+      setCheckLastOpenBooks(opened);
 
       setLibrary(library);
       setLibraryLoaded(true);
@@ -404,7 +436,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   };
 
   const selectFilesTauri = async () => {
-    const exts = appService?.isMobileApp ? [] : SUPPORTED_FILE_EXTS;
+    const exts = appService?.isIOSApp ? [] : SUPPORTED_FILE_EXTS;
     const files = (await appService?.selectFiles(_('Select Books'), exts)) || [];
     if (appService?.isIOSApp) {
       return files.filter((file) => {
@@ -412,7 +444,6 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         return SUPPORTED_FILE_EXTS.includes(fileExt);
       });
     }
-    // Cannot filter out files on Android since some content providers may not return the file name
     return files;
   };
 
@@ -439,74 +470,82 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     }));
   }, 500);
 
-  const handleBookUpload = async (book: Book) => {
-    try {
-      await appService?.uploadBook(book, (progress) => {
-        updateBookTransferProgress(book.hash, progress);
-      });
-      await updateBook(envConfig, book);
-      pushLibrary();
-      eventDispatcher.dispatch('toast', {
-        type: 'info',
-        timeout: 2000,
-        message: _('Book uploaded: {{title}}', {
-          title: book.title,
-        }),
-      });
-      return true;
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.message.includes('Not authenticated') && settings.keepLogin) {
-          settings.keepLogin = false;
-          setSettings(settings);
-          navigateToLogin(router);
-          return false;
-        } else if (err.message.includes('Insufficient storage quota')) {
-          eventDispatcher.dispatch('toast', {
-            type: 'error',
-            message: _('Insufficient storage quota'),
-          });
-          return false;
+  const handleBookUpload = useCallback(
+    async (book: Book) => {
+      try {
+        await appService?.uploadBook(book, (progress) => {
+          updateBookTransferProgress(book.hash, progress);
+        });
+        await updateBook(envConfig, book);
+        pushLibrary();
+        eventDispatcher.dispatch('toast', {
+          type: 'info',
+          timeout: 2000,
+          message: _('Book uploaded: {{title}}', {
+            title: book.title,
+          }),
+        });
+        return true;
+      } catch (err) {
+        if (err instanceof Error) {
+          if (err.message.includes('Not authenticated') && settings.keepLogin) {
+            settings.keepLogin = false;
+            setSettings(settings);
+            navigateToLogin(router);
+            return false;
+          } else if (err.message.includes('Insufficient storage quota')) {
+            eventDispatcher.dispatch('toast', {
+              type: 'error',
+              message: _('Insufficient storage quota'),
+            });
+            return false;
+          }
         }
+        eventDispatcher.dispatch('toast', {
+          type: 'error',
+          message: _('Failed to upload book: {{title}}', {
+            title: book.title,
+          }),
+        });
+        return false;
       }
-      eventDispatcher.dispatch('toast', {
-        type: 'error',
-        message: _('Failed to upload book: {{title}}', {
-          title: book.title,
-        }),
-      });
-      return false;
-    }
-  };
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appService],
+  );
 
-  const handleBookDownload = async (book: Book) => {
-    try {
-      await appService?.downloadBook(book, false, (progress) => {
-        updateBookTransferProgress(book.hash, progress);
-      });
-      await updateBook(envConfig, book);
-      eventDispatcher.dispatch('toast', {
-        type: 'info',
-        timeout: 2000,
-        message: _('Book downloaded: {{title}}', {
-          title: book.title,
-        }),
-      });
-      return true;
-    } catch {
-      eventDispatcher.dispatch('toast', {
-        message: _('Failed to download book: {{title}}', {
-          title: book.title,
-        }),
-        type: 'error',
-      });
-      return false;
-    }
-  };
+  const handleBookDownload = useCallback(
+    async (book: Book, redownload = false) => {
+      try {
+        await appService?.downloadBook(book, false, redownload, (progress) => {
+          updateBookTransferProgress(book.hash, progress);
+        });
+        await updateBook(envConfig, book);
+        eventDispatcher.dispatch('toast', {
+          type: 'info',
+          timeout: 2000,
+          message: _('Book downloaded: {{title}}', {
+            title: book.title,
+          }),
+        });
+        return true;
+      } catch {
+        eventDispatcher.dispatch('toast', {
+          message: _('Failed to download book: {{title}}', {
+            title: book.title,
+          }),
+          type: 'error',
+        });
+        return false;
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appService],
+  );
 
   const handleBookDelete = async (book: Book) => {
     try {
-      await appService?.deleteBook(book, !!book.uploadedAt);
+      await appService?.deleteBook(book, !!book.uploadedAt, true);
       await updateBook(envConfig, book);
       pushLibrary();
       eventDispatcher.dispatch('toast', {
@@ -528,15 +567,71 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     }
   };
 
+  const handleBookDeleteCloudBackup = async (book: Book) => {
+    try {
+      await appService?.deleteBook(book, !!book.uploadedAt, false);
+      await updateBook(envConfig, book);
+      pushLibrary();
+      eventDispatcher.dispatch('toast', {
+        type: 'info',
+        timeout: 2000,
+        message: _('Deleted cloud backup of the book: {{title}}', {
+          title: book.title,
+        }),
+      });
+      return true;
+    } catch (e) {
+      console.error(e);
+      eventDispatcher.dispatch('toast', {
+        type: 'error',
+        message: _('Failed to delete cloud backup of the book', {
+          title: book.title,
+        }),
+      });
+      return false;
+    }
+  };
+
+  const handleUpdateMetadata = async (book: Book, metadata: BookMetadata) => {
+    book.metadata = metadata;
+    book.title = formatTitle(metadata.title);
+    book.author = formatAuthors(metadata.author);
+    book.primaryLanguage = getPrimaryLanguage(metadata.language);
+    book.updatedAt = Date.now();
+    if (metadata.coverImageBlobUrl || metadata.coverImageUrl || metadata.coverImageFile) {
+      book.coverImageUrl = metadata.coverImageBlobUrl || metadata.coverImageUrl;
+      try {
+        await appService?.updateCoverImage(
+          book,
+          metadata.coverImageBlobUrl || metadata.coverImageUrl,
+          metadata.coverImageFile,
+        );
+      } catch (error) {
+        console.warn('Failed to update cover image:', error);
+      }
+    }
+    if (isWebAppPlatform()) {
+      // Clear HTTP cover image URL if cover is updated with a local file
+      if (metadata.coverImageBlobUrl) {
+        metadata.coverImageUrl = undefined;
+      }
+    } else {
+      metadata.coverImageUrl = undefined;
+    }
+    metadata.coverImageBlobUrl = undefined;
+    metadata.coverImageFile = undefined;
+    await updateBook(envConfig, book);
+  };
+
   const handleImportBooks = async () => {
     setIsSelectMode(false);
     console.log('Importing books...');
     let files;
 
     if (isTauriAppPlatform()) {
-      files = (await selectFilesTauri()) as [string];
+      files = (await selectFilesTauri()) as string[];
     } else {
-      files = (await selectFilesWeb()) as [File];
+      files = (await selectFilesWeb()) as File[];
     }
     importBooks(files);
   };
@@ -584,6 +679,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       className={clsx(
         'library-page bg-base-200 text-base-content flex select-none flex-col overflow-hidden',
         appService?.isIOSApp ? 'h-[100vh]' : 'h-dvh',
+        appService?.isLinuxApp && 'window-border',
         appService?.hasRoundedWindow && 'rounded-window',
       )}
     >
@@ -604,34 +700,44 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       )}
       {libraryLoaded &&
         (libraryBooks.some((book) => !book.deletedAt) ? (
-          <div
-            ref={containerRef}
-            className={clsx(
-              'scroll-container drop-zone flex-grow overflow-y-auto',
-              isDragging && 'drag-over',
-            )}
-            style={{
-              paddingTop: '0px',
-              paddingRight: `${insets.right}px`,
-              paddingBottom: `${insets.bottom}px`,
-              paddingLeft: `${insets.left}px`,
+          <OverlayScrollbarsComponent
+            defer
+            ref={osRef}
+            options={{ scrollbars: { autoHide: 'scroll' } }}
+            events={{
+              initialized: (instance) => {
+                const { content } = instance.elements();
+                if (content) {
+                  containerRef.current = content as HTMLDivElement;
+                }
+              },
             }}
           >
-            <DropIndicator />
-            <Bookshelf
-              libraryBooks={libraryBooks}
-              isSelectMode={isSelectMode}
-              isSelectAll={isSelectAll}
-              isSelectNone={isSelectNone}
-              handleImportBooks={handleImportBooks}
-              handleBookUpload={handleBookUpload}
-              handleBookDownload={handleBookDownload}
-              handleBookDelete={handleBookDelete}
-              handleSetSelectMode={handleSetSelectMode}
-              handleShowDetailsBook={handleShowDetailsBook}
-              booksTransferProgress={booksTransferProgress}
-            />
-          </div>
+            <div
+              className={clsx('scroll-container drop-zone flex-grow', isDragging && 'drag-over')}
+              style={{
+                paddingTop: '0px',
+                paddingRight: `${insets.right}px`,
+                paddingBottom: `${insets.bottom}px`,
+                paddingLeft: `${insets.left}px`,
+              }}
+            >
+              <DropIndicator />
+              <Bookshelf
+                libraryBooks={libraryBooks}
+                isSelectMode={isSelectMode}
+                isSelectAll={isSelectAll}
+                isSelectNone={isSelectNone}
+                handleImportBooks={handleImportBooks}
+                handleBookUpload={handleBookUpload}
+                handleBookDownload={handleBookDownload}
+                handleBookDelete={handleBookDelete}
+                handleSetSelectMode={handleSetSelectMode}
+                handleShowDetailsBook={handleShowDetailsBook}
+                booksTransferProgress={booksTransferProgress}
+              />
+            </div>
+          </OverlayScrollbarsComponent>
         ) : (
           <div className='hero drop-zone h-screen items-center justify-center'>
             <DropIndicator />
@@ -658,10 +764,12 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
           handleBookUpload={handleBookUpload}
           handleBookDownload={handleBookDownload}
           handleBookDelete={handleBookDelete}
+          handleBookDeleteCloudBackup={handleBookDeleteCloudBackup}
+          handleBookMetadataUpdate={handleUpdateMetadata}
         />
       )}
       <AboutWindow />
-      {appService?.isAndroidApp && <UpdaterWindow />}
+      <UpdaterWindow />
       <Toast />
     </div>
   );

@@ -110,7 +110,14 @@ const getColorStyles = (
     html, body {
       color: ${fg};
     }
-    div, p, h1, h2, h3, h4, h5, h6 {
+    html[has-background], body[has-background] {
+      --background-set: var(--theme-bg-color);
+    }
+    html {
+      background-color: var(--theme-bg-color, transparent);
+      background: var(--background-set, none);
+    }
+    div, p, font, h1, h2, h3, h4, h5, h6 {
       ${overrideColor ? `background-color: ${bg} !important;` : ''}
       ${overrideColor ? `color: ${fg} !important;` : ''}
     }
@@ -129,12 +136,15 @@ const getColorStyles = (
     }
     img {
       ${isDarkMode && invertImgColorInDark ? 'filter: invert(100%);' : ''}
+      ${!isDarkMode && overrideColor ? 'mix-blend-mode: multiply;' : ''}
     }
     /* inline images */
     p img, span img, sup img {
       mix-blend-mode: ${isDarkMode ? 'screen' : 'multiply'};
     }
     /* override inline hardcoded text color */
+    font[color="#000000"], font[color="#000"], font[color="black"],
+    font[color="rgb(0,0,0)"], font[color="rgb(0, 0, 0)"],
     *[style*="color: rgb(0,0,0)"], *[style*="color: rgb(0, 0, 0)"],
     *[style*="color: #000"], *[style*="color: #000000"], *[style*="color: black"],
     *[style*="color:rgb(0,0,0)"], *[style*="color:rgb(0, 0, 0)"],
@@ -190,17 +200,10 @@ const getLayoutStyles = (
       white-space: pre-wrap !important;
       tab-size: 2;
   }
-  html[has-background], body[has-background] {
-    --background-set: var(--theme-bg-color);
-  }
   html, body {
     ${writingMode === 'auto' ? '' : `writing-mode: ${writingMode} !important;`}
     text-align: var(--default-text-align);
     max-height: unset;
-  }
-  html {
-    background-color: var(--theme-bg-color, transparent);
-    background: var(--background-set, none);
   }
   body {
     overflow: unset;
@@ -210,6 +213,18 @@ const getLayoutStyles = (
     height: auto;
     width: auto;
     background-color: transparent !important;
+  }
+  /* enlarge the clickable area of links */
+  a {
+    position: relative !important;
+  }
+  a::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
   }
   p, blockquote, dd, div:not(:has(*:not(b, a, em, i, strong, u, span))) {
     line-height: ${lineSpacing} ${overrideLayout ? '!important' : ''};
@@ -227,8 +242,14 @@ const getLayoutStyles = (
     widows: 2;
   }
   p:has(> img:only-child), p:has(> span:only-child > img:only-child),
+  p:has(> img:not(.has-text-siblings)),
   p:has(> a:first-child + img:last-child) {
-    text-indent: unset !important;
+    text-indent: initial !important;
+  }
+  blockquote[align="center"], div[align="center"],
+  p[align="center"], dd[align="center"],
+  li p, ol p, ul p {
+    text-indent: initial !important;
   }
   p {
     ${vertical ? `margin-left: ${paragraphMargin}em ${overrideLayout ? '!important' : ''};` : ''}
@@ -282,13 +303,20 @@ const getLayoutStyles = (
   }
 
   /* inline images without dimension */
-  p > img, span > img, sup img {
+  sup img {
     height: 1em;
   }
-  p:has(> img:only-child) img, span:has(> img:only-child) img,
-  p:has(> a:first-child + img:last-child) img,
-  span:has(> a:first-child + img:last-child) img {
+  img.has-text-siblings {
+    height: 1em;
+    vertical-align: baseline;
+  }
+  .ie6 img {
+    width: auto;
     height: auto;
+  }
+  .duokan-footnote img {
+    width: 0.8em;
+    height: 0.8em;
   }
 
   /* workaround for some badly designed epubs */
@@ -316,6 +344,8 @@ export const getFootnoteStyles = () => `
 
   a:any-link {
     text-decoration: none;
+    padding: unset;
+    margin: unset;
   }
 
   ol {
@@ -329,13 +359,22 @@ export const getFootnoteStyles = () => `
   }
 `;
 
-const getTranslationStyles = () => `
-  .translation-block-wrapper {
-    display: block !important;
-    margin: 0.5em 0 !important;
+const getTranslationStyles = (showSource: boolean) => `
+  .translation-source {
+  }
+  .translation-target {
   }
   .translation-target.hidden {
     display: none !important;
+  }
+  .translation-target-block {
+    display: block !important;
+    ${showSource ? 'margin: 0.5em 0 !important;' : ''}
+  }
+  .translation-target-toc {
+    display: block !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 `;
 
@@ -420,9 +459,24 @@ export const getStyles = (viewSettings: ViewSettings, themeCode?: ThemeCode) => 
     viewSettings.invertImgColorInDark!,
     themeCode,
   );
-  const translationStyles = getTranslationStyles();
+  const translationStyles = getTranslationStyles(viewSettings.showTranslateSource!);
   const userStylesheet = viewSettings.userStylesheet!;
   return `${layoutStyles}\n${fontStyles}\n${colorStyles}\n${translationStyles}\n${userStylesheet}`;
+};
+
+export const applyTranslationStyle = (viewSettings: ViewSettings) => {
+  const styleId = 'translation-style';
+
+  const existingStyle = document.getElementById(styleId);
+  if (existingStyle) {
+    existingStyle.remove();
+  }
+
+  const styleElement = document.createElement('style');
+  styleElement.id = styleId;
+  styleElement.textContent = getTranslationStyles(viewSettings.showTranslateSource);
+
+  document.head.appendChild(styleElement);
 };
 
 export const transformStylesheet = (vw: number, vh: number, css: string) => {
@@ -472,4 +526,58 @@ export const transformStylesheet = (vw: number, vh: number, css: string) => {
     .replace(/[\s;]color\s*:\s*#000/gi, 'color: var(--theme-fg-color)')
     .replace(/[\s;]color\s*:\s*rgb\(0,\s*0,\s*0\)/gi, 'color: var(--theme-fg-color)');
   return css;
+};
+
+export const applyImageStyle = (document: Document) => {
+  document.querySelectorAll('img').forEach((img) => {
+    const parent = img.parentNode;
+    if (!parent || parent.nodeType !== Node.ELEMENT_NODE) return;
+    const hasTextSiblings = Array.from(parent.childNodes).some(
+      (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
+    );
+    if (hasTextSiblings) {
+      img.classList.add('has-text-siblings');
+    }
+  });
+};
+
+export const applyFixedlayoutStyles = (
+  document: Document,
+  viewSettings: ViewSettings,
+  themeCode?: ThemeCode,
+) => {
+  if (!themeCode) {
+    themeCode = getThemeCode();
+  }
+  const { bg, fg, primary, isDarkMode } = themeCode;
+  const overrideColor = viewSettings.overrideColor!;
+  const invertImgColorInDark = viewSettings.invertImgColorInDark!;
+
+  const existingStyleId = 'fixed-layout-styles';
+  let style = document.getElementById(existingStyleId) as HTMLStyleElement;
+  if (style) {
+    style.remove();
+  }
+  style = document.createElement('style');
+  style.id = existingStyleId;
+  style.textContent = `
+    html {
+      --theme-bg-color: ${bg};
+      --theme-fg-color: ${fg};
+      --theme-primary-color: ${primary};
+      color-scheme: ${isDarkMode ? 'dark' : 'light'};
+    }
+    body {
+      position: relative;
+      background-color: var(--theme-bg-color);
+    }
+    img, canvas {
+      ${isDarkMode && invertImgColorInDark ? 'filter: invert(100%);' : ''}
+      ${!isDarkMode && overrideColor ? 'mix-blend-mode: multiply;' : ''}
+    }
+    img.singlePage {
+      position: relative;
+    }
+  `;
+  document.head.appendChild(style);
 };

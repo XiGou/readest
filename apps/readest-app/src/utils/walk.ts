@@ -1,4 +1,4 @@
-export const walkTextNodes = (root: HTMLElement): HTMLElement[] => {
+export const walkTextNodes = (root: HTMLElement, rejectTags: string[] = []): HTMLElement[] => {
   const elements: HTMLElement[] = [];
   const walk = (node: HTMLElement | Document | ShadowRoot, depth = 0) => {
     if (depth > 15) return;
@@ -7,7 +7,11 @@ export const walkTextNodes = (root: HTMLElement): HTMLElement[] => {
     }
     const children = 'children' in node ? (Array.from(node.children) as HTMLElement[]) : [];
     for (const child of children) {
-      if (child.tagName === 'STYLE' || child.tagName === 'LINK') {
+      if (
+        child.tagName === 'STYLE' ||
+        child.tagName === 'LINK' ||
+        rejectTags.includes(child.tagName.toLowerCase())
+      ) {
         continue;
       }
       if (child.shadowRoot) {
@@ -22,9 +26,15 @@ export const walkTextNodes = (root: HTMLElement): HTMLElement[] => {
       }
       const hasDirectText =
         child.childNodes &&
-        Array.from(child.childNodes).some(
-          (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
-        );
+        Array.from(child.childNodes).some((node) => {
+          if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) {
+            return true;
+          }
+          if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'SPAN') {
+            return true;
+          }
+          return false;
+        });
       if (child.children.length === 0 && child.textContent?.trim()) {
         elements.push(child);
       } else if (hasDirectText) {

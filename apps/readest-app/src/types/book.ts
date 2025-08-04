@@ -1,3 +1,5 @@
+import { BookMetadata } from '@/libs/document';
+
 export type BookFormat = 'EPUB' | 'PDF' | 'MOBI' | 'CBZ' | 'FB2' | 'FBZ';
 export type BookNoteType = 'bookmark' | 'annotation' | 'excerpt';
 export type HighlightStyle = 'highlight' | 'underline' | 'squiggly';
@@ -10,7 +12,8 @@ export interface Book {
   filePath?: string;
   hash: string;
   format: BookFormat;
-  title: string;
+  title: string; // editable title from metadata
+  sourceTitle?: string; // parsed when the book is imported and used to locate the file
   author: string;
   group?: string; // deprecated in favor of groupId and groupName
   groupId?: string;
@@ -24,10 +27,13 @@ export interface Book {
 
   uploadedAt?: number | null;
   downloadedAt?: number | null;
+  coverDownloadedAt?: number | null;
 
   lastUpdated?: number; // deprecated in favor of updatedAt
   progress?: [number, number]; // Add progress field: [current, total], 1-based page number
   primaryLanguage?: string;
+
+  metadata?: BookMetadata;
 }
 
 export interface BookGroupType {
@@ -86,6 +92,7 @@ export interface BookLayout {
   scrolled: boolean;
   disableClick: boolean;
   swapClickArea: boolean;
+  disableDoubleClick: boolean;
   volumeKeysToFlip: boolean;
   continuousScroll: boolean;
   maxColumnCount: number;
@@ -156,6 +163,7 @@ export interface TranslatorConfig {
   translationEnabled: boolean;
   translationProvider: string;
   translateTargetLang: string;
+  showTranslateSource: boolean;
 }
 
 export interface ScreenConfig {

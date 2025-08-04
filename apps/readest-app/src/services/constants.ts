@@ -33,10 +33,14 @@ export const FILE_ACCEPT_FORMATS = SUPPORTED_FILE_EXTS.map((ext) => `.${ext}`).j
 export const BOOK_UNGROUPED_NAME = '';
 export const BOOK_UNGROUPED_ID = '';
 
+export const SUPPORTED_IMAGE_EXTS = ['png', 'jpg', 'jpeg'];
+export const IMAGE_ACCEPT_FORMATS = SUPPORTED_IMAGE_EXTS.map((ext) => `.${ext}`).join(', ');
+
 export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   keepLogin: false,
   autoUpload: false,
   alwaysOnTop: false,
+  openBookInNewWindow: true,
   alwaysShowStatusBar: false,
   autoCheckUpdates: true,
   screenWakeLock: false,
@@ -101,6 +105,7 @@ export const DEFAULT_BOOK_LAYOUT: BookLayout = {
   scrolled: false,
   disableClick: false,
   swapClickArea: false,
+  disableDoubleClick: false,
   volumeKeysToFlip: false,
   continuousScroll: false,
   maxColumnCount: 2,
@@ -139,6 +144,7 @@ export const DEFAULT_MOBILE_VIEW_SETTINGS: Partial<ViewSettings> = {
   animated: true,
   defaultFont: 'Sans-serif',
   marginBottomPx: 16,
+  disableDoubleClick: true,
 };
 
 export const DEFAULT_CJK_VIEW_SETTINGS: Partial<ViewSettings> = {
@@ -172,6 +178,7 @@ export const DEFAULT_TRANSLATOR_CONFIG: TranslatorConfig = {
   translationEnabled: false,
   translationProvider: 'deepl',
   translateTargetLang: '',
+  showTranslateSource: true,
 };
 
 export const DEFAULT_SCREEN_CONFIG: ScreenConfig = {
@@ -530,6 +537,7 @@ export const BOOK_IDS_SEPARATOR = '+';
 export const DOWNLOAD_READEST_URL = 'https://readest.com?utm_source=readest_web';
 
 export const READEST_WEB_BASE_URL = 'https://web.readest.com';
+export const READEST_NODE_BASE_URL = 'https://node.readest.com';
 
 const LATEST_DOWNLOAD_BASE_URL = 'https://download.readest.com/releases';
 
@@ -542,7 +550,7 @@ export const SYNC_NOTES_INTERVAL_SEC = 5;
 export const SYNC_BOOKS_INTERVAL_SEC = 5;
 export const CHECK_UPDATE_INTERVAL_SEC = 24 * 60 * 60;
 
-export const RELOAD_BEFREE_SAVED_TIMEOUT_MS = 300;
+export const RELOAD_BEFORE_SAVED_TIMEOUT_MS = 300;
 
 export const MAX_ZOOM_LEVEL = 500;
 export const MIN_ZOOM_LEVEL = 50;
@@ -550,14 +558,14 @@ export const ZOOM_STEP = 10;
 
 export const DEFAULT_STORAGE_QUOTA: UserStorageQuota = {
   free: 500 * 1024 * 1024,
-  plus: 2 * 1024 * 1024 * 1024,
-  pro: 10 * 1024 * 1024 * 1024,
+  plus: 5 * 1024 * 1024 * 1024,
+  pro: 20 * 1024 * 1024 * 1024,
 };
 
 export const DEFAULT_DAILY_TRANSLATION_QUOTA: UserDailyTranslationQuota = {
   free: 10 * 1024,
-  plus: 50 * 1024,
-  pro: 200 * 1024,
+  plus: 100 * 1024,
+  pro: 500 * 1024,
 };
 
 export const DOUBLE_CLICK_INTERVAL_THRESHOLD_MS = 250;
@@ -645,8 +653,29 @@ export const TRANSLATED_LANGS = {
   hi: 'हिन्दी',
   id: 'Indonesia',
   vi: 'Tiếng Việt',
+  th: 'ภาษาไทย',
   'zh-CN': '简体中文',
   'zh-TW': '正體中文',
 };
 
+export const TRANSLATOR_LANGS: Record<string, string> = {
+  ...TRANSLATED_LANGS,
+  no: 'Norsk',
+  sv: 'Svenska',
+  fi: 'Suomi',
+  da: 'Dansk',
+  cs: 'Čeština',
+  hu: 'Magyar',
+  ro: 'Română',
+  bg: 'Български',
+  hr: 'Hrvatski',
+  lt: 'Lietuvių',
+  sl: 'Slovenščina',
+  sk: 'Slovenčina',
+};
+
 export const SUPPORTED_LANGS: Record<string, string> = { ...TRANSLATED_LANGS, zh: '中文' };
+
+export const SUPPORTED_LANGNAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(SUPPORTED_LANGS).map(([code, name]) => [name, code]),
+);

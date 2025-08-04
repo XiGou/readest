@@ -44,13 +44,16 @@ const PlansComparison: React.FC<PlansComparisonProps> = ({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    const touchStart = e.touches[0]!.clientX;
+    const touchStartX = e.touches[0]!.clientX;
+    const touchStartY = e.touches[0]!.clientY;
     const handleTouchMove = (moveEvent: TouchEvent) => {
-      const touchEnd = moveEvent.touches[0]!.clientX;
-      const diff = touchStart - touchEnd;
+      const touchEndX = moveEvent.touches[0]!.clientX;
+      const touchEndY = moveEvent.touches[0]!.clientY;
+      const diffX = touchStartX - touchEndX;
+      const diffY = touchStartY - touchEndY;
 
-      if (Math.abs(diff) > 50) {
-        if (diff > 0) {
+      if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > 50) {
+        if (diffX > 0) {
           handlePlanSwipe('left');
         } else {
           handlePlanSwipe('right');
@@ -82,6 +85,9 @@ const PlansComparison: React.FC<PlansComparisonProps> = ({
         const newIndex = Math.floor(viewportCenter / cardWidth);
         const clampedIndex = Math.max(0, Math.min(newIndex, allPlans.length - 1));
 
+        if (currentPlanIndex === 0 && scrollLeft < 10) {
+          return;
+        }
         if (clampedIndex !== currentPlanIndex) {
           setCurrentPlanIndex(clampedIndex);
         }
@@ -117,19 +123,19 @@ const PlansComparison: React.FC<PlansComparisonProps> = ({
   }));
 
   return (
-    <div className='overflow-hidden rounded-xl border bg-white shadow-sm'>
+    <div className='bg-base-100 border-base-200 overflow-hidden rounded-xl border shadow-sm'>
       <PlanNavigation
+        allPlans={allPlans}
         currentPlanIndex={currentPlanIndex}
-        totalPlans={allPlans.length}
-        onPlanSwipe={handlePlanSwipe}
+        onSelectPlan={setCurrentPlanIndex}
       />
 
       <div
         ref={plansScrollRef}
-        className='scrollbar-hide flex items-center overflow-x-auto scroll-smooth pe-20'
+        className='scrollbar-hide flex items-start overflow-x-auto scroll-smooth'
         onTouchStart={handleTouchStart}
         style={{
-          scrollSnapType: 'x mandatory',
+          scrollSnapType: appService?.isAndroidApp ? 'none' : 'x mandatory',
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
         }}
@@ -138,13 +144,13 @@ const PlansComparison: React.FC<PlansComparisonProps> = ({
           <PlanCard
             key={plan.plan}
             plan={plan}
-            comingSoon={appService?.isIOSApp}
+            comingSoon={['playstore'].includes(appService?.distChannel || '')}
             isUserPlan={plan.plan === userPlan}
             upgradable={index > userPlanIndex}
             index={index}
             currentPlanIndex={currentPlanIndex}
             onSubscribe={onSubscribe}
-            onPlanSwipe={handlePlanSwipe}
+            onSelectPlan={setCurrentPlanIndex}
           />
         ))}
       </div>
@@ -152,7 +158,7 @@ const PlansComparison: React.FC<PlansComparisonProps> = ({
       <PlanIndicators
         allPlans={allPlans}
         currentPlanIndex={currentPlanIndex}
-        onPlanSelect={setCurrentPlanIndex}
+        onSelectPlan={setCurrentPlanIndex}
       />
     </div>
   );

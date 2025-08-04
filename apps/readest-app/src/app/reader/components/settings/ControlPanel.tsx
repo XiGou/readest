@@ -4,12 +4,12 @@ import { useReaderStore } from '@/store/readerStore';
 import { useDeviceControlStore } from '@/store/deviceStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useBookDataStore } from '@/store/bookDataStore';
+import { useResetViewSettings } from '../../hooks/useResetSettings';
 import { getStyles } from '@/utils/style';
+import { saveAndReload } from '@/utils/reload';
 import { getMaxInlineSize } from '@/utils/config';
 import { saveViewSettings } from '../../utils/viewSettingsHelper';
-import { RELOAD_BEFREE_SAVED_TIMEOUT_MS } from '@/services/constants';
 import { SettingsPanelPanelProp } from './SettingsDialog';
-import { useResetViewSettings } from '../../hooks/useResetSettings';
 import NumberInput from './NumberInput';
 
 const ControlPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset }) => {
@@ -27,6 +27,9 @@ const ControlPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterRes
   const [volumeKeysToFlip, setVolumeKeysToFlip] = useState(viewSettings.volumeKeysToFlip!);
   const [isDisableClick, setIsDisableClick] = useState(viewSettings.disableClick!);
   const [swapClickArea, setSwapClickArea] = useState(viewSettings.swapClickArea!);
+  const [isDisableDoubleClick, setIsDisableDoubleClick] = useState(
+    viewSettings.disableDoubleClick!,
+  );
   const [animated, setAnimated] = useState(viewSettings.animated!);
   const [allowScript, setAllowScript] = useState(viewSettings.allowScript!);
 
@@ -91,6 +94,11 @@ const ControlPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterRes
   }, [isDisableClick]);
 
   useEffect(() => {
+    saveViewSettings(envConfig, bookKey, 'disableDoubleClick', isDisableDoubleClick, false, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDisableDoubleClick]);
+
+  useEffect(() => {
     saveViewSettings(envConfig, bookKey, 'swapClickArea', swapClickArea, false, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [swapClickArea]);
@@ -108,7 +116,7 @@ const ControlPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterRes
   useEffect(() => {
     if (viewSettings.allowScript === allowScript) return;
     saveViewSettings(envConfig, bookKey, 'allowScript', allowScript, true, false);
-    setTimeout(() => window.location.reload(), RELOAD_BEFREE_SAVED_TIMEOUT_MS);
+    saveAndReload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowScript]);
 
@@ -170,6 +178,15 @@ const ControlPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterRes
                 checked={swapClickArea}
                 disabled={isDisableClick}
                 onChange={() => setSwapClickArea(!swapClickArea)}
+              />
+            </div>
+            <div className='config-item'>
+              <span className=''>{_('Disable Double Click')}</span>
+              <input
+                type='checkbox'
+                className='toggle'
+                checked={isDisableDoubleClick}
+                onChange={() => setIsDisableDoubleClick(!isDisableDoubleClick)}
               />
             </div>
             {appService?.isMobileApp && (

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { FaSearch, FaChevronDown } from 'react-icons/fa';
 
 import { useEnv } from '@/context/EnvContext';
@@ -9,7 +9,9 @@ import { useReaderStore } from '@/store/readerStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { BookSearchConfig, BookSearchResult } from '@/types/book';
 import { useResponsiveSize } from '@/hooks/useResponsiveSize';
+import { debounce } from '@/utils/debounce';
 import { isCJKStr } from '@/utils/lang';
+import { createRejecttFilter } from '@/utils/node';
 import Dropdown from '@/components/Dropdown';
 import SearchOptions from './SearchOptions';
 
@@ -38,6 +40,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
   const { getConfig, saveConfig } = useBookDataStore();
   const { getView, getProgress } = useReaderStore();
   const [searchTerm, setSearchTerm] = useState(term);
+  const queuedSearchTerm = useRef('');
   const inputRef = useRef<HTMLInputElement>(null);
   const inputFocusedRef = useRef(false);
 
@@ -47,10 +50,6 @@ const SearchBar: React.FC<SearchBarProps> = ({
   const progress = getProgress(bookKey)!;
   const primaryLang = bookData.book?.primaryLanguage || 'en';
   const searchConfig = config.searchConfig! as BookSearchConfig;
-
-  const queuedSearchTerm = useRef('');
-  const isSearchPending = useRef(false);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const iconSize12 = useResponsiveSize(12);
   const iconSize16 = useResponsiveSize(16);
@@ -79,6 +78,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
     if (isVisible && searchTerm) {
       handleSearchTermChange(searchTerm);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVisible]);
 
   useEffect(() => {
@@ -94,27 +94,14 @@ const SearchBar: React.FC<SearchBarProps> = ({
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      if (searchTimeout.current) {
-        clearTimeout(searchTimeout.current);
-      }
     };
-  }, []);
+  }, [onHideSearchBar]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setSearchTerm(value);
-
-    if (searchTimeout.current) {
-      clearTimeout(searchTimeout.current);
-    }
-
-    searchTimeout.current = setTimeout(() => {
-      if (!isSearchPending.current) {
-        handleSearchTermChange(value);
-      } else {
-        queuedSearchTerm.current = value;
-      }
-    }, 500);
+    handleSearchTermChange(value);
+    queuedSearchTerm.current = value;
   };
 
   const handleSearchConfigChange = (searchConfig: BookSearchConfig) => {
@@ -131,67 +118,74 @@ const SearchBar: React.FC<SearchBarProps> = ({
     return searchTerm.length >= minLength;
   };
 
-  const handleSearchTermChange = (term: string) => {
-    if (exceedMinSearchTermLength(term)) {
-      handleSearch(term);
-    } else {
-      resetSearch();
-    }
-  };
+  const handleSearch = useCallback(
+    async (term: string) => {
+      console.log('searching for:', term);
+      const { section } = progress;
+      const index = searchConfig.scope === 'section' ? section.current : undefined;
+      const generator = await view.search({
+        ...searchConfig,
+        index,
+        query: term,
+        acceptNode: createRejecttFilter({
+          tags: primaryLang.startsWith('ja') ? ['rt'] : [],
+        }),
+      });
+      const results: BookSearchResult[] = [];
+      let lastProgressLogTime = 0;
 
-  const createAcceptNode = ({ withRT = true } = {}) => {
-    return (node: Node): number => {
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        const name = (node as Element).tagName.toLowerCase();
-        if (name === 'script' || name === 'style' || (!withRT && name === 'rt')) {
-          return NodeFilter.FILTER_REJECT;
-        }
-        return NodeFilter.FILTER_SKIP;
-      }
-      return NodeFilter.FILTER_ACCEPT;
-    };
-  };
-
-  const handleSearch = async (term: string) => {
-    console.log('searching for:', term);
-    isSearchPending.current = true;
-    const { section } = progress;
-    const index = searchConfig.scope === 'section' ? section.current : undefined;
-    const generator = await view.search({
-      ...searchConfig,
-      index,
-      query: term,
-      acceptNode: createAcceptNode({ withRT: !primaryLang.startsWith('ja') }),
-    });
-    const results: BookSearchResult[] = [];
-    for await (const result of generator) {
-      if (typeof result === 'string') {
-        if (result === 'done') {
-          onSearchResultChange([...results]);
-          isSearchPending.current = false;
-          console.log('search done');
-          if (
-            queuedSearchTerm.current !== term &&
-            exceedMinSearchTermLength(queuedSearchTerm.current)
-          ) {
-            handleSearch(queuedSearchTerm.current);
+      const processResults = async () => {
+        for await (const result of generator) {
+          if (typeof result === 'string') {
+            if (result === 'done') {
+              onSearchResultChange([...results]);
+              console.log('search done');
+            }
+          } else {
+            if (result.progress) {
+              const now = Date.now();
+              if (now - lastProgressLogTime >= 1000) {
+                console.log('search progress:', result.progress);
+                lastProgressLogTime = now;
+              }
+              if (queuedSearchTerm.current !== term) {
+                console.log('search term changed, resetting search');
+                resetSearch();
+                return;
+              }
+            } else {
+              results.push(result);
+              onSearchResultChange([...results]);
+            }
           }
-        }
-      } else {
-        if (result.progress) {
-          //console.log('search progress:', result.progress);
-        } else {
-          results.push(result);
-          onSearchResultChange([...results]);
-        }
-      }
-    }
-  };
 
-  const resetSearch = () => {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      };
+
+      processResults();
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [progress, searchConfig],
+  );
+
+  const resetSearch = useCallback(() => {
     onSearchResultChange([]);
     view?.clearSearch();
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleSearchTermChange = useCallback(
+    debounce((term: string) => {
+      if (exceedMinSearchTermLength(term)) {
+        handleSearch(term);
+      } else {
+        resetSearch();
+      }
+    }, 500),
+    [handleSearch, resetSearch],
+  );
 
   return (
     <div className='relative p-2'>

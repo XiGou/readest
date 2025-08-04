@@ -5,24 +5,27 @@ import * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
+import { Book } from '@/types/book';
 import { useEnv } from '@/context/EnvContext';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useBookDataStore } from '@/store/bookDataStore';
 import { useReaderStore } from '@/store/readerStore';
 import { useSidebarStore } from '@/store/sidebarStore';
-import { Book } from '@/types/book';
 import { SystemSettings } from '@/types/settings';
 import { parseOpenWithFiles } from '@/helpers/openWith';
+import { getCurrentWindow } from '@tauri-apps/api/window';
+import { UnlistenFn } from '@tauri-apps/api/event';
 import { tauriHandleClose, tauriHandleOnCloseWindow } from '@/utils/window';
 import { isTauriAppPlatform } from '@/services/environment';
 import { uniqueId } from '@/utils/misc';
+import { throttle } from '@/utils/throttle';
 import { eventDispatcher } from '@/utils/event';
 import { navigateToLibrary } from '@/utils/nav';
 import { BOOK_IDS_SEPARATOR } from '@/services/constants';
+import { BookDetailModal } from '@/components/metadata';
 
 import useBooksManager from '../hooks/useBooksManager';
 import useBookShortcuts from '../hooks/useBookShortcuts';
-import BookDetailModal from '@/components/BookDetailModal';
 import Spinner from '@/components/Spinner';
 import SideBar from './sidebar/SideBar';
 import Notebook from './notebook/Notebook';
@@ -82,12 +85,18 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
       saveSettings(envConfig, settings);
     }
 
-    if (isTauriAppPlatform()) tauriHandleOnCloseWindow(handleCloseBooks);
+    let unlistenOnCloseWindow: Promise<UnlistenFn>;
+    if (isTauriAppPlatform()) {
+      unlistenOnCloseWindow = tauriHandleOnCloseWindow(handleCloseBooks);
+    }
     window.addEventListener('beforeunload', handleCloseBooks);
+    eventDispatcher.on('beforereload', handleCloseBooks);
     eventDispatcher.on('quit-app', handleCloseBooks);
     return () => {
       window.removeEventListener('beforeunload', handleCloseBooks);
+      eventDispatcher.off('beforereload', handleCloseBooks);
       eventDispatcher.off('quit-app', handleCloseBooks);
+      unlistenOnCloseWindow?.then((fn) => fn());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookKeys]);
@@ -121,11 +130,11 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
     navigateToLibrary(router);
   };
 
-  const handleCloseBooks = async () => {
+  const handleCloseBooks = throttle(async () => {
     const settings = useSettingsStore.getState().settings;
     await Promise.all(bookKeys.map((key) => saveConfigAndCloseBook(key)));
     await saveSettings(envConfig, settings);
-  };
+  }, 200);
 
   const handleCloseBooksToLibrary = () => {
     handleCloseBooks();
@@ -140,11 +149,16 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
     dismissBook(bookKey);
     if (bookKeys.filter((key) => key !== bookKey).length == 0) {
       const openWithFiles = (await parseOpenWithFiles()) || [];
-      if (openWithFiles.length > 0 && !appService?.isMobile) {
-        tauriHandleClose();
-      } else {
-        saveSettingsAndGoToLibrary();
+      if (appService?.hasWindow) {
+        if (openWithFiles.length > 0) {
+          return await tauriHandleClose();
+        }
+        const currentWindow = getCurrentWindow();
+        if (currentWindow.label.startsWith('reader')) {
+          return await currentWindow.close();
+        }
       }
+      saveSettingsAndGoToLibrary();
     }
   };
 
@@ -163,7 +177,7 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
   }
 
   return (
-    <div className={clsx('flex', appService?.isIOSApp ? 'h-[100vh]' : 'h-dvh')}>
+    <div className={clsx('reader-content flex', appService?.isIOSApp ? 'h-[100vh]' : 'h-dvh')}>
       <SideBar onGoToLibrary={handleCloseBooksToLibrary} />
       <BooksGrid bookKeys={bookKeys} onCloseBook={handleCloseBook} />
       <Notebook />

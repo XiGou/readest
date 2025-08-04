@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MdDelete, MdOpenInNew, MdOutlineCancel, MdInfoOutline } from 'react-icons/md';
 import { LuFolderPlus } from 'react-icons/lu';
 import { PiPlus } from 'react-icons/pi';
@@ -11,7 +11,7 @@ import { useEnv } from '@/context/EnvContext';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useLibraryStore } from '@/store/libraryStore';
 import { useTranslation } from '@/hooks/useTranslation';
-import { navigateToLibrary, navigateToReader } from '@/utils/nav';
+import { navigateToLibrary, navigateToReader, showReaderWindow } from '@/utils/nav';
 import { formatAuthors, formatTitle } from '@/utils/book';
 import { isMd5 } from '@/utils/md5';
 
@@ -54,7 +54,6 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   const { appService } = useEnv();
   const { settings } = useSettingsStore();
   const [loading, setLoading] = useState(false);
-  const [selectedBooks, setSelectedBooks] = useState<string[]>([]);
   const [showSelectModeActions, setShowSelectModeActions] = useState(false);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   const [showGroupingModal, setShowGroupingModal] = useState(false);
@@ -70,6 +69,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   const isImportingBook = useRef(false);
 
   const { setCurrentBookshelf, setLibrary } = useLibraryStore();
+  const { setSelectedBooks, getSelectedBooks, toggleSelectedBook } = useLibraryStore();
   const allBookshelfItems =
     viewMode === 'grid' ? generateGridItems(libraryBooks) : generateListItems(libraryBooks);
 
@@ -162,18 +162,24 @@ const Bookshelf: React.FC<BookshelfProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, libraryBooks, showGroupingModal]);
 
-  const toggleSelection = (id: string) => {
-    setSelectedBooks((prev) =>
-      prev.includes(id) ? prev.filter((selectedId) => selectedId !== id) : [...prev, id],
-    );
-  };
+  const toggleSelection = useCallback((id: string) => {
+    toggleSelectedBook(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openSelectedBooks = () => {
-    setTimeout(() => setLoading(true), 200);
-    navigateToReader(router, selectedBooks);
+    handleSetSelectMode(false);
+    if (appService?.hasWindow && settings.openBookInNewWindow) {
+      showReaderWindow(appService, getSelectedBooks());
+    } else {
+      setTimeout(() => setLoading(true), 200);
+      navigateToReader(router, getSelectedBooks());
+    }
   };
 
   const openBookDetails = () => {
+    handleSetSelectMode(false);
+    const selectedBooks = getSelectedBooks();
     const book = libraryBooks.find((book) => book.hash === selectedBooks[0]);
     if (book) {
       handleShowDetailsBook(book);
@@ -182,6 +188,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
 
   const getBooksToDelete = () => {
     const booksToDelete: Book[] = [];
+    const selectedBooks = getSelectedBooks();
     selectedBooks.forEach((id) => {
       for (const book of libraryBooks.filter((book) => book.hash === id || book.groupId === id)) {
         if (book && !book.deletedAt) {
@@ -216,7 +223,13 @@ const Bookshelf: React.FC<BookshelfProps> = ({
     const searchTerm = new RegExp(queryTerm, 'i');
     const title = formatTitle(item.title);
     const authors = formatAuthors(item.author);
-    return searchTerm.test(title) || searchTerm.test(authors);
+    return (
+      searchTerm.test(title) ||
+      searchTerm.test(authors) ||
+      searchTerm.test(item.format) ||
+      (item.groupName && searchTerm.test(item.groupName)) ||
+      (item.metadata?.description && searchTerm.test(item.metadata?.description))
+    );
   };
   const bookSorter = (a: Book, b: Book) => {
     const uiLanguage = localStorage?.getItem('i18nextLng') || '';
@@ -281,24 +294,28 @@ const Bookshelf: React.FC<BookshelfProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSelectMode, isSelectAll, isSelectNone]);
 
+  const selectedBooks = getSelectedBooks();
+
   return (
     <div className='bookshelf'>
       <div
         className={clsx(
-          'transform-wrapper',
+          'bookshelf-items transform-wrapper',
           viewMode === 'grid' && 'grid flex-1 grid-cols-3 gap-x-4 px-4 sm:gap-x-0 sm:px-2',
           viewMode === 'grid' && 'sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-12',
           viewMode === 'list' && 'flex flex-col',
         )}
       >
-        {filteredBookshelfItems.map((item, index) => (
+        {filteredBookshelfItems.map((item) => (
           <BookshelfItem
-            key={`library-item-${'hash' in item ? item.hash : item.id}-${index}`}
+            key={`library-item-${'hash' in item ? item.hash : item.id}`}
             item={item}
             mode={viewMode as LibraryViewModeType}
             coverFit={coverFit as LibraryCoverFitType}
             isSelectMode={isSelectMode}
-            selectedBooks={selectedBooks}
+            itemSelected={
+              'hash' in item ? selectedBooks.includes(item.hash) : selectedBooks.includes(item.id)
+            }
             setLoading={setLoading}
             toggleSelection={toggleSelection}
             handleBookUpload={handleBookUpload}

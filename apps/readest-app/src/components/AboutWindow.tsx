@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
-import { checkForAppUpdates } from '@/helpers/updater';
+import { checkForAppUpdates, checkAppReleaseNotes } from '@/helpers/updater';
 import { parseWebViewVersion } from '@/utils/ua';
 import { getAppVersion } from '@/utils/version';
+import LegalLinks from './LegalLinks';
 import Dialog from './Dialog';
 import Link from './Link';
 
@@ -50,14 +51,23 @@ export const AboutWindow = () => {
   const handleCheckUpdate = async () => {
     setUpdateStatus('checking');
     try {
-      const update = await checkForAppUpdates(_, false);
-      if (update) {
-        setIsOpen(false);
+      const hasUpdate = await checkForAppUpdates(_, false);
+      if (hasUpdate) {
+        handleClose();
       } else {
         setUpdateStatus('updated');
       }
     } catch (error) {
       console.info('Error checking for updates:', error);
+      setUpdateStatus('error');
+    }
+  };
+
+  const handleShowRecentUpdates = async () => {
+    const hasNotes = await checkAppReleaseNotes(false);
+    if (hasNotes) {
+      handleClose();
+    } else {
       setUpdateStatus('error');
     }
   };
@@ -87,8 +97,11 @@ export const AboutWindow = () => {
             </p>
           </div>
           <div className='h-5'>
-            {appService?.hasUpdater && !updateStatus && (
-              <span className='badge badge-primary cursor-pointer p-1' onClick={handleCheckUpdate}>
+            {!updateStatus && (
+              <span
+                className='badge badge-primary cursor-pointer p-2'
+                onClick={appService?.hasUpdater ? handleCheckUpdate : handleShowRecentUpdates}
+              >
                 {_('Check Update')}
               </span>
             )}
@@ -110,6 +123,7 @@ export const AboutWindow = () => {
           <p className='text-neutral-content text-sm'>
             © {new Date().getFullYear()} Bilingify LLC. All rights reserved.
           </p>
+
           <p className='text-neutral-content mt-2 text-xs'>
             This software is licensed under the{' '}
             <Link
@@ -128,6 +142,8 @@ export const AboutWindow = () => {
             </Link>
             .
           </p>
+
+          <LegalLinks />
         </div>
       </div>
     </Dialog>

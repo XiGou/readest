@@ -13,7 +13,13 @@ import { usePagination } from '../hooks/usePagination';
 import { useFoliateEvents } from '../hooks/useFoliateEvents';
 import { useProgressSync } from '../hooks/useProgressSync';
 import { useProgressAutoSave } from '../hooks/useProgressAutoSave';
-import { getStyles, transformStylesheet } from '@/utils/style';
+import {
+  applyFixedlayoutStyles,
+  applyImageStyle,
+  applyTranslationStyle,
+  getStyles,
+  transformStylesheet,
+} from '@/utils/style';
 import { mountAdditionalFonts } from '@/utils/font';
 import { getBookDirFromLanguage, getBookDirFromWritingMode } from '@/utils/book';
 import { useUICSS } from '@/hooks/useUICSS';
@@ -60,6 +66,7 @@ const FoliateViewer: React.FC<{
   const viewRef = useRef<FoliateView | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isViewCreated = useRef(false);
+  const doubleClickDisabled = useRef(!!viewSettings?.disableDoubleClick);
   const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
@@ -129,6 +136,12 @@ const FoliateViewer: React.FC<{
 
       mountAdditionalFonts(detail.doc, isCJKLang(bookData.book?.primaryLanguage));
 
+      if (bookDoc.rendition?.layout === 'pre-paginated') {
+        applyFixedlayoutStyles(detail.doc, viewSettings);
+      }
+
+      applyImageStyle(detail.doc);
+
       // Inline scripts in tauri platforms are not executed by default
       if (viewSettings.allowScript && isTauriAppPlatform()) {
         evalInlineScripts(detail.doc);
@@ -147,7 +160,7 @@ const FoliateViewer: React.FC<{
         detail.doc.addEventListener('keydown', handleKeydown.bind(null, bookKey));
         detail.doc.addEventListener('mousedown', handleMousedown.bind(null, bookKey));
         detail.doc.addEventListener('mouseup', handleMouseup.bind(null, bookKey));
-        detail.doc.addEventListener('click', handleClick.bind(null, bookKey));
+        detail.doc.addEventListener('click', handleClick.bind(null, bookKey, doubleClickDisabled));
         detail.doc.addEventListener('wheel', handleWheel.bind(null, bookKey));
         detail.doc.addEventListener('touchstart', handleTouchStart.bind(null, bookKey));
         detail.doc.addEventListener('touchmove', handleTouchMove.bind(null, bookKey));
@@ -242,7 +255,9 @@ const FoliateViewer: React.FC<{
       const height = viewHeight - insets.top - insets.bottom;
       book.transformTarget?.addEventListener('data', getDocTransformHandler({ width, height }));
       view.renderer.setStyles?.(getStyles(viewSettings));
+      applyTranslationStyle(viewSettings);
 
+      doubleClickDisabled.current = viewSettings.disableDoubleClick!;
       const animated = viewSettings.animated!;
       const maxColumnCount = viewSettings.maxColumnCount!;
       const maxInlineSize = getMaxInlineSize(viewSettings);
@@ -304,9 +319,19 @@ const FoliateViewer: React.FC<{
     if (viewRef.current && viewRef.current.renderer) {
       const viewSettings = getViewSettings(bookKey)!;
       viewRef.current.renderer.setStyles?.(getStyles(viewSettings));
+      if (bookDoc.rendition?.layout === 'pre-paginated') {
+        const docs = viewRef.current.renderer.getContents();
+        docs.forEach(({ doc }) => applyFixedlayoutStyles(doc, viewSettings));
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [themeCode, isDarkMode]);
+  }, [themeCode, isDarkMode, viewSettings?.overrideColor, viewSettings?.invertImgColorInDark]);
+
+  useEffect(() => {
+    if (viewRef.current && viewRef.current.renderer) {
+      doubleClickDisabled.current = !!viewSettings?.disableDoubleClick;
+    }
+  }, [viewSettings?.disableDoubleClick]);
 
   useEffect(() => {
     if (viewRef.current && viewRef.current.renderer && viewSettings) {

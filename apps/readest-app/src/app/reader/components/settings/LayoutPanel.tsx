@@ -11,11 +11,12 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useResetViewSettings } from '../../hooks/useResetSettings';
 import { isCJKEnv } from '@/utils/misc';
 import { getStyles } from '@/utils/style';
+import { saveAndReload } from '@/utils/reload';
 import { getMaxInlineSize } from '@/utils/config';
 import { lockScreenOrientation } from '@/utils/bridge';
-import { getBookDirFromWritingMode, getBookLangCode } from '@/utils/book';
-import { MIGHT_BE_RTL_LANGS, RELOAD_BEFREE_SAVED_TIMEOUT_MS } from '@/services/constants';
 import { saveViewSettings } from '../../utils/viewSettingsHelper';
+import { getBookDirFromWritingMode, getBookLangCode } from '@/utils/book';
+import { MIGHT_BE_RTL_LANGS } from '@/services/constants';
 import { SettingsPanelPanelProp } from './SettingsDialog';
 import NumberInput from './NumberInput';
 
@@ -280,7 +281,7 @@ const LayoutPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterRese
       (['horizontal-rl', 'vertical-rl'].includes(writingMode) ||
         ['horizontal-rl', 'vertical-rl'].includes(prevWritingMode))
     ) {
-      setTimeout(() => window.location.reload(), RELOAD_BEFREE_SAVED_TIMEOUT_MS);
+      saveAndReload();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [writingMode]);
@@ -675,7 +676,7 @@ const LayoutPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterRese
         </div>
       </div>
 
-      {appService?.isMobileApp && (
+      {appService?.hasOrientationLock && (
         <div className='w-full'>
           <h2 className='mb-2 font-medium'>{_('Screen')}</h2>
           <div className='card border-base-200 bg-base-100 border shadow'>

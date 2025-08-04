@@ -33,6 +33,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
   const router = useRouter();
   const { envConfig, appService } = useEnv();
   const { user } = useAuth();
+  const { userPlan, quotas } = useQuotaStats(true);
   const { themeMode, setThemeMode } = useThemeStore();
   const { settings, setSettings, saveSettings } = useSettingsStore();
   const [isAutoUpload, setIsAutoUpload] = useState(settings.autoUpload);
@@ -46,8 +47,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
   );
   const [isTelemetryEnabled, setIsTelemetryEnabled] = useState(settings.telemetryEnabled);
   const iconSize = useResponsiveSize(16);
-
-  const { quotas } = useQuotaStats();
 
   const showAboutReadest = () => {
     setAboutDialogVisible(true);
@@ -81,6 +80,13 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
 
   const handleFullScreen = () => {
     tauriHandleToggleFullScreen();
+    setIsDropdownOpen?.(false);
+  };
+
+  const toggleOpenInNewWindow = () => {
+    settings.openBookInNewWindow = !settings.openBookInNewWindow;
+    setSettings(settings);
+    saveSettings(envConfig, settings);
     setIsDropdownOpen?.(false);
   };
 
@@ -152,6 +158,11 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
     setIsTelemetryEnabled(settings.telemetryEnabled);
   };
 
+  const handleUpgrade = () => {
+    navigateToProfile(router);
+    setIsDropdownOpen?.(false);
+  };
+
   const avatarUrl = user?.user_metadata?.['picture'] || user?.user_metadata?.['avatar_url'];
   const userFullName = user?.user_metadata?.['full_name'];
   const userDisplayName = userFullName ? userFullName.split(' ')[0] : null;
@@ -181,7 +192,9 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
           }
         >
           <ul>
-            <Quota quotas={quotas} labelClassName='h-10 pl-3 pr-2' />
+            <div onClick={handleUserProfile} className='cursor-pointer'>
+              <Quota quotas={quotas} labelClassName='h-10 pl-3 pr-2' />
+            </div>
             <MenuItem label={_('Account')} noIcon onClick={handleUserProfile} />
           </ul>
         </MenuItem>
@@ -215,6 +228,13 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
         />
       )}
       <hr className='border-base-200 my-1' />
+      {appService?.hasWindow && (
+        <MenuItem
+          label={_('Open Book in New Window')}
+          Icon={settings.openBookInNewWindow ? MdCheck : undefined}
+          onClick={toggleOpenInNewWindow}
+        />
+      )}
       {appService?.hasWindow && <MenuItem label={_('Fullscreen')} onClick={handleFullScreen} />}
       {appService?.hasWindow && (
         <MenuItem
@@ -248,6 +268,9 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
         onClick={cycleThemeMode}
       />
       <hr className='border-base-200 my-1' />
+      {user && userPlan === 'free' && !appService?.isIOSApp && (
+        <MenuItem label={_('Upgrade to Readest Premium')} onClick={handleUpgrade} />
+      )}
       {isWebAppPlatform() && <MenuItem label={_('Download Readest')} onClick={downloadReadest} />}
       <MenuItem label={_('About Readest')} onClick={showAboutReadest} />
       <MenuItem

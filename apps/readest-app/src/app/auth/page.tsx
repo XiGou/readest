@@ -23,6 +23,7 @@ import { getBaseUrl, isTauriAppPlatform } from '@/services/environment';
 import { onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import { start, cancel, onUrl, onInvalidUrl } from '@fabianlars/tauri-plugin-oauth';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { invoke } from '@tauri-apps/api/core';
 import { handleAuthCallback } from '@/helpers/auth';
 import { getAppleIdAuth, Scope } from './utils/appleIdAuth';
 import { authWithCustomTab, authWithSafari } from './utils/nativeAuth';
@@ -91,15 +92,22 @@ export default function AuthPage() {
   const { isTrafficLightVisible } = useTrafficLightStore();
   const { settings, setSettings, saveSettings } = useSettingsStore();
   const [port, setPort] = useState<number | null>(null);
-  const isOAuthServerRunning = useRef(false);
   const [isMounted, setIsMounted] = useState(false);
+  const isOAuthServerRunning = useRef(false);
+  const useCustomeOAuth = useRef(false);
 
   const headerRef = useRef<HTMLDivElement>(null);
 
   useTheme({ systemUIVisible: false });
 
   const getTauriRedirectTo = (isOAuth: boolean) => {
-    if (process.env.NODE_ENV === 'production' || appService?.isMobileApp || USE_APPLE_SIGN_IN) {
+    // For custom OAuth mode, use a local server to handle the OAuth callback
+    // This is useful for development or some sandboxed environments like Flatpak
+    // where custom URL schemes are not supported
+    if (
+      !useCustomeOAuth.current &&
+      (process.env.NODE_ENV === 'production' || appService?.isMobileApp || USE_APPLE_SIGN_IN)
+    ) {
       if (appService?.isMobileApp) {
         return isOAuth ? DEEPLINK_CALLBACK : WEB_AUTH_CALLBACK;
       }
@@ -208,7 +216,10 @@ export default function AuthPage() {
 
   const startTauriOAuth = async () => {
     try {
-      if (process.env.NODE_ENV === 'production' || appService?.isMobileApp || USE_APPLE_SIGN_IN) {
+      if (
+        !useCustomeOAuth.current &&
+        (process.env.NODE_ENV === 'production' || appService?.isMobileApp || USE_APPLE_SIGN_IN)
+      ) {
         const { getCurrentWindow } = await import('@tauri-apps/api/window');
         const currentWindow = getCurrentWindow();
         currentWindow.listen('single-instance', ({ event, payload }) => {
@@ -278,7 +289,7 @@ export default function AuthPage() {
           button_label: _('Sign up'),
           loading_button_label: _('Signing up...'),
           social_provider_text: _('Sign in with {{provider}}'),
-          link_text: _('Don’t have an account? Sign up'),
+          link_text: _("Don't have an account? Sign up"),
           confirmation_text: _('Check your email for the confirmation link'),
         },
         magic_link: {
@@ -317,6 +328,12 @@ export default function AuthPage() {
     if (isOAuthServerRunning.current) return;
     isOAuthServerRunning.current = true;
 
+    invoke('get_environment_variable', { name: 'USE_CUSTOM_OAUTH' }).then((value) => {
+      if (value === 'true') {
+        useCustomeOAuth.current = true;
+      }
+    });
+
     startTauriOAuth();
     return () => {
       isOAuthServerRunning.current = false;
@@ -354,64 +371,82 @@ export default function AuthPage() {
   return isTauriAppPlatform() ? (
     <div
       className={clsx(
-        'fixed inset-0 z-0 flex select-none flex-col items-center overflow-y-auto',
-        'bg-base-100 border-base-200 border',
-        appService?.hasSafeAreaInset && 'pt-[env(safe-area-inset-top)]',
+        'bg-base-100 inset-0 flex select-none flex-col items-center overflow-hidden',
+        appService?.isIOSApp ? 'h-[100vh]' : 'h-dvh',
+        appService?.isLinuxApp && 'window-border',
+        appService?.hasRoundedWindow && 'rounded-window',
       )}
     >
       <div
-        ref={headerRef}
         className={clsx(
-          'fixed z-10 flex w-full items-center justify-between py-2 pe-6 ps-4',
-          appService?.hasTrafficLight && 'pt-11',
+          'flex h-full w-full flex-col items-center overflow-y-auto',
+          appService?.hasSafeAreaInset && 'pt-[env(safe-area-inset-top)]',
         )}
       >
-        <button onClick={handleGoBack} className={clsx('btn btn-ghost h-8 min-h-8 w-8 p-0')}>
-          <IoArrowBack className='text-base-content' />
-        </button>
+        <div
+          ref={headerRef}
+          className={clsx(
+            'fixed z-10 flex w-full items-center justify-between py-2 pe-6 ps-4',
+            appService?.hasTrafficLight && 'pt-11',
+          )}
+        >
+          <button
+            onClick={handleGoBack}
+            className={clsx('btn btn-ghost h-12 min-h-12 w-12 p-0 sm:h-8 sm:min-h-8 sm:w-8')}
+          >
+            <IoArrowBack className='text-base-content' />
+          </button>
 
-        {appService?.hasWindowBar && (
-          <WindowButtons
-            headerRef={headerRef}
-            showMinimize={!isTrafficLightVisible}
-            showMaximize={!isTrafficLightVisible}
-            showClose={!isTrafficLightVisible}
-            onClose={handleGoBack}
+          {appService?.hasWindowBar && (
+            <WindowButtons
+              headerRef={headerRef}
+              showMinimize={!isTrafficLightVisible}
+              showMaximize={!isTrafficLightVisible}
+              showClose={!isTrafficLightVisible}
+              onClose={handleGoBack}
+            />
+          )}
+        </div>
+        <div
+          className={clsx(
+            'z-20 flex flex-col items-center pb-8',
+            appService?.hasTrafficLight ? 'mt-24' : 'mt-12',
+          )}
+          style={{ maxWidth: '420px' }}
+        >
+          <ProviderLogin
+            provider='google'
+            handleSignIn={tauriSignIn}
+            Icon={FcGoogle}
+            label={_('Sign in with Google')}
           />
-        )}
-      </div>
-      <div
-        className={clsx('z-20 pb-8', appService?.hasTrafficLight ? 'mt-24' : 'mt-12')}
-        style={{ maxWidth: '420px' }}
-      >
-        <ProviderLogin
-          provider='google'
-          handleSignIn={tauriSignIn}
-          Icon={FcGoogle}
-          label={_('Sign in with Google')}
-        />
-        <ProviderLogin
-          provider='apple'
-          handleSignIn={appService?.isIOSApp || USE_APPLE_SIGN_IN ? tauriSignInApple : tauriSignIn}
-          Icon={FaApple}
-          label={_('Sign in with Apple')}
-        />
-        <ProviderLogin
-          provider='github'
-          handleSignIn={tauriSignIn}
-          Icon={FaGithub}
-          label={_('Sign in with GitHub')}
-        />
-        <hr className='border-base-300 my-3 mt-6 w-64 border-t' />
-        <Auth
-          supabaseClient={supabase}
-          appearance={{ theme: ThemeSupa }}
-          theme={isDarkMode ? 'dark' : 'light'}
-          magicLink={true}
-          providers={[]}
-          redirectTo={getTauriRedirectTo(false)}
-          localization={getAuthLocalization()}
-        />
+          <ProviderLogin
+            provider='apple'
+            handleSignIn={
+              appService?.isIOSApp || USE_APPLE_SIGN_IN ? tauriSignInApple : tauriSignIn
+            }
+            Icon={FaApple}
+            label={_('Sign in with Apple')}
+          />
+          <ProviderLogin
+            provider='github'
+            handleSignIn={tauriSignIn}
+            Icon={FaGithub}
+            label={_('Sign in with GitHub')}
+          />
+          <hr className='border-base-300 my-3 mt-6 w-64 border-t' />
+          <div className='w-full'>
+            <Auth
+              supabaseClient={supabase}
+              appearance={{ theme: ThemeSupa }}
+              theme={isDarkMode ? 'dark' : 'light'}
+              magicLink={true}
+              providers={[]}
+              redirectTo={getTauriRedirectTo(false)}
+              localization={getAuthLocalization()}
+            />
+          </div>
+        </div>
       </div>
     </div>
   ) : (
