@@ -23,6 +23,7 @@ export class EdgeTTSClient implements TTSClient {
   #isPlaying = false;
   #pausedAt = 0;
   #startedAt = 0;
+  #fadeCompensation: number | null = null;
 
   constructor(controller?: TTSController) {
     this.controller = controller;
@@ -97,18 +98,17 @@ export class EdgeTTSClient implements TTSClient {
       } as TTSMessageEvent;
 
       return;
-    } else {
-      await this.stopInternal();
     }
 
+    await this.stopInternal();
+    // Reuse the same Audio element inside the ssml session
+    this.#audioElement = new Audio();
+    const audio = this.#audioElement;
+    audio.setAttribute('x-webkit-airplay', 'deny');
+    audio.preload = 'auto';
+
     for (const mark of marks) {
-      if (signal.aborted) {
-        yield {
-          code: 'error',
-          message: 'Aborted',
-        } as TTSMessageEvent;
-        break;
-      }
+      let abortHandler: null | (() => void) = null;
       try {
         const { language: voiceLang } = mark;
         const voiceId = await this.getVoiceIdFromLang(voiceLang);
@@ -116,11 +116,7 @@ export class EdgeTTSClient implements TTSClient {
         const blob = await this.#edgeTTS.createAudio(
           this.getPayload(voiceLang, mark.text, voiceId),
         );
-        const url = URL.createObjectURL(blob);
-        this.#audioElement = new Audio(url);
-        const audio = this.#audioElement;
-        audio.setAttribute('x-webkit-airplay', 'deny');
-        audio.preload = 'auto';
+        audio.src = URL.createObjectURL(blob);
 
         this.controller?.dispatchSpeakMark(mark);
 
@@ -135,27 +131,30 @@ export class EdgeTTSClient implements TTSClient {
             audio.onended = null;
             audio.onerror = null;
             audio.pause();
-            audio.src = '';
-            URL.revokeObjectURL(url);
+            if (audio.src) {
+              URL.revokeObjectURL(audio.src);
+              audio.removeAttribute('src');
+            }
           };
+          abortHandler = () => {
+            cleanUp();
+            resolve({ code: 'error', message: 'Aborted' });
+          };
+          if (signal.aborted) {
+            abortHandler();
+            return;
+          } else {
+            signal.addEventListener('abort', abortHandler);
+          }
           audio.onended = () => {
             cleanUp();
-            if (signal.aborted) {
-              resolve({ code: 'error', message: 'Aborted' });
-            } else {
-              resolve({ code: 'end', message: `Chunk finished: ${mark.name}` });
-            }
+            resolve({ code: 'end', message: `Chunk finished: ${mark.name}` });
           };
           audio.onerror = (e) => {
             cleanUp();
             console.warn('Audio playback error:', e);
             resolve({ code: 'error', message: 'Audio playback error' });
           };
-          if (signal.aborted) {
-            cleanUp();
-            resolve({ code: 'error', message: 'Aborted' });
-            return;
-          }
           this.#isPlaying = true;
           audio.play().catch((err) => {
             cleanUp();
@@ -167,22 +166,20 @@ export class EdgeTTSClient implements TTSClient {
       } catch (error) {
         if (error instanceof Error && error.message === 'No audio data received.') {
           console.warn('No audio data received for:', mark.text);
-          yield {
-            code: 'end',
-            message: `Chunk finished: ${mark.name}`,
-          } as TTSMessageEvent;
+          yield { code: 'end', message: `Chunk finished: ${mark.name}` } as TTSMessageEvent;
           continue;
         }
-        console.log('Error:', error);
-        yield {
-          code: 'error',
-          message: error instanceof Error ? error.message : String(error),
-        } as TTSMessageEvent;
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn('TTS error for mark:', mark.text, message);
+        yield { code: 'error', message } as TTSMessageEvent;
         break;
+      } finally {
+        if (abortHandler) {
+          signal.removeEventListener('abort', abortHandler);
+        }
       }
-
-      await this.stopInternal();
     }
+    await this.stopInternal();
   }
 
   async pause() {
@@ -193,8 +190,25 @@ export class EdgeTTSClient implements TTSClient {
     return true;
   }
 
+  #getFadeCompensation() {
+    if (this.#fadeCompensation !== null) return this.#fadeCompensation;
+
+    const userAgent = navigator.userAgent;
+    const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(userAgent);
+    if (isSafari || isIOS) {
+      this.#fadeCompensation = 0.2;
+    } else {
+      this.#fadeCompensation = 0.0;
+    }
+
+    return this.#fadeCompensation;
+  }
+
   async resume() {
     if (this.#isPlaying || !this.#audioElement) return true;
+    const fadeCompensation = this.#getFadeCompensation();
+    this.#audioElement.currentTime = Math.max(0, this.#audioElement.currentTime - fadeCompensation);
     await this.#audioElement.play();
     this.#isPlaying = true;
     this.#startedAt = this.#audioElement.currentTime - this.#pausedAt;

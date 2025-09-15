@@ -8,17 +8,20 @@ import { PiPlus } from 'react-icons/pi';
 import { Book, BooksGroup } from '@/types/book';
 import { LibraryCoverFitType, LibraryViewModeType } from '@/types/settings';
 import { useEnv } from '@/context/EnvContext';
+import { useThemeStore } from '@/store/themeStore';
+import { useAutoFocus } from '@/hooks/useAutoFocus';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useLibraryStore } from '@/store/libraryStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { navigateToLibrary, navigateToReader, showReaderWindow } from '@/utils/nav';
 import { formatAuthors, formatTitle } from '@/utils/book';
+import { eventDispatcher } from '@/utils/event';
 import { isMd5 } from '@/utils/md5';
 
 import Alert from '@/components/Alert';
 import Spinner from '@/components/Spinner';
 import ModalPortal from '@/components/ModalPortal';
-import BookshelfItem, { generateGridItems, generateListItems } from './BookshelfItem';
+import BookshelfItem, { generateBookshelfItems } from './BookshelfItem';
 import GroupingModal from './GroupingModal';
 
 interface BookshelfProps {
@@ -53,8 +56,10 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   const searchParams = useSearchParams();
   const { appService } = useEnv();
   const { settings } = useSettingsStore();
+  const { safeAreaInsets } = useThemeStore();
   const [loading, setLoading] = useState(false);
   const [showSelectModeActions, setShowSelectModeActions] = useState(false);
+  const [bookIdsToDelete, setBookIdsToDelete] = useState<string[]>([]);
   const [showDeleteAlert, setShowDeleteAlert] = useState(false);
   const [showGroupingModal, setShowGroupingModal] = useState(false);
   const [queryTerm, setQueryTerm] = useState<string | null>(null);
@@ -70,8 +75,9 @@ const Bookshelf: React.FC<BookshelfProps> = ({
 
   const { setCurrentBookshelf, setLibrary } = useLibraryStore();
   const { setSelectedBooks, getSelectedBooks, toggleSelectedBook } = useLibraryStore();
-  const allBookshelfItems =
-    viewMode === 'grid' ? generateGridItems(libraryBooks) : generateListItems(libraryBooks);
+  const allBookshelfItems = generateBookshelfItems(libraryBooks);
+
+  const autofocusRef = useAutoFocus<HTMLDivElement>();
 
   useEffect(() => {
     if (isImportingBook.current) return;
@@ -188,8 +194,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
 
   const getBooksToDelete = () => {
     const booksToDelete: Book[] = [];
-    const selectedBooks = getSelectedBooks();
-    selectedBooks.forEach((id) => {
+    bookIdsToDelete.forEach((id) => {
       for (const book of libraryBooks.filter((book) => book.hash === id || book.groupId === id)) {
         if (book && !book.deletedAt) {
           booksToDelete.push(book);
@@ -209,6 +214,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   };
 
   const deleteSelectedBooks = () => {
+    setBookIdsToDelete(getSelectedBooks());
     setShowSelectModeActions(false);
     setShowDeleteAlert(true);
   };
@@ -216,6 +222,13 @@ const Bookshelf: React.FC<BookshelfProps> = ({
   const groupSelectedBooks = () => {
     setShowSelectModeActions(false);
     setShowGroupingModal(true);
+  };
+
+  const handleDeleteBooksIntent = (event: CustomEvent) => {
+    const { ids } = event.detail;
+    setBookIdsToDelete(ids);
+    setShowSelectModeActions(false);
+    setShowDeleteAlert(true);
   };
 
   const bookFilter = (item: Book, queryTerm: string) => {
@@ -239,8 +252,8 @@ const Bookshelf: React.FC<BookshelfProps> = ({
         const bTitle = formatTitle(b.title);
         return aTitle.localeCompare(bTitle, uiLanguage || navigator.language);
       case 'author':
-        const aAuthors = formatAuthors(a.author);
-        const bAuthors = formatAuthors(b.author);
+        const aAuthors = formatAuthors(a.author, a?.primaryLanguage || 'en', true);
+        const bAuthors = formatAuthors(b.author, b?.primaryLanguage || 'en', true);
         return aAuthors.localeCompare(bAuthors, uiLanguage || navigator.language);
       case 'updated':
         return new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
@@ -294,17 +307,28 @@ const Bookshelf: React.FC<BookshelfProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSelectMode, isSelectAll, isSelectNone]);
 
+  useEffect(() => {
+    eventDispatcher.on('delete-books', handleDeleteBooksIntent);
+    return () => {
+      eventDispatcher.off('delete-books', handleDeleteBooksIntent);
+    };
+  }, []);
+
   const selectedBooks = getSelectedBooks();
 
   return (
     <div className='bookshelf'>
       <div
+        ref={autofocusRef}
+        tabIndex={-1}
         className={clsx(
-          'bookshelf-items transform-wrapper',
+          'bookshelf-items transform-wrapper focus:outline-none',
           viewMode === 'grid' && 'grid flex-1 grid-cols-3 gap-x-4 px-4 sm:gap-x-0 sm:px-2',
           viewMode === 'grid' && 'sm:grid-cols-4 md:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-12',
           viewMode === 'list' && 'flex flex-col',
         )}
+        role='list'
+        aria-label={_('Bookshelf')}
       >
         {filteredBookshelfItems.map((item) => (
           <BookshelfItem
@@ -329,16 +353,16 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           />
         ))}
         {viewMode === 'grid' && !navBooksGroup && allBookshelfItems.length > 0 && (
-          <div
+          <button
+            aria-label={_('Import Books')}
             className={clsx(
               'border-1 bg-base-100 hover:bg-base-300/50 flex items-center justify-center',
               'mx-0 my-4 aspect-[28/41] sm:mx-4',
             )}
-            role='button'
             onClick={handleImportBooks}
           >
             <PiPlus className='size-10' color='gray' />
-          </div>
+          </button>
         )}
       </div>
       {loading && (
@@ -346,7 +370,12 @@ const Bookshelf: React.FC<BookshelfProps> = ({
           <Spinner loading />
         </div>
       )}
-      <div className='fixed bottom-0 left-0 right-0 z-40 pb-[calc(env(safe-area-inset-bottom)+16px)]'>
+      <div
+        className='fixed bottom-0 left-0 right-0 z-40'
+        style={{
+          paddingBottom: `${(safeAreaInsets?.bottom || 0) + 16}px`,
+        }}
+      >
         {isSelectMode && showSelectModeActions && (
           <div
             className={clsx(
@@ -425,10 +454,10 @@ const Bookshelf: React.FC<BookshelfProps> = ({
       )}
       {showDeleteAlert && (
         <div
-          className={clsx(
-            'fixed bottom-0 left-0 right-0 z-50 flex justify-center',
-            'pb-[calc(env(safe-area-inset-bottom)+16px)]',
-          )}
+          className={clsx('fixed bottom-0 left-0 right-0 z-50 flex justify-center')}
+          style={{
+            paddingBottom: `${(safeAreaInsets?.bottom || 0) + 16}px`,
+          }}
         >
           <Alert
             title={_('Confirm Deletion')}

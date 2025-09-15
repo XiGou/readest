@@ -51,6 +51,8 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             commands::iap_fetch_products,
             commands::iap_purchase_product,
             commands::iap_restore_purchases,
+            commands::get_system_color_scheme,
+            commands::get_safe_area_insets,
         ])
         .setup(|app, api| {
             #[cfg(mobile)]

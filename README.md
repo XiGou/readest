@@ -11,14 +11,15 @@
 [![Web App][badge-web-app]][link-web-readest]
 [![OS][badge-platforms]][link-website]
 <br>
-[![][badge-hellogithub]][link-hellogithub]
-[![][badge-discord]][link-discord]
+[![Discord][badge-discord]][link-discord]
+[![Reddit][badge-reddit]][link-reddit]
 [![AGPL Licence][badge-license]](LICENSE)
-[![Latest release][badge-release]][link-gh-releases]
+[![Language Coverage][badge-language-coverage]]()
 [![Donate][badge-donate]][link-donate]
-<br>
+[![Latest release][badge-release]][link-gh-releases]
 [![Last commit][badge-last-commit]][link-gh-commits]
 [![Commits][badge-commit-activity]][link-gh-pulse]
+[![][badge-hellogithub]][link-hellogithub]
 [![Ask DeepWiki][badge-deepwiki]][link-deepwiki]
 
 </div>
@@ -67,16 +68,16 @@
 <div align="left">🛠 Building</div>
 <div align="left">🔄 Planned</div>
 
-| **Feature**                     | **Description**                                                                            | **Priority** |
-| ------------------------------- | ------------------------------------------------------------------------------------------ | ------------ |
-| **Sync with Koreader**          | Synchronize reading progress, notes, and bookmarks with [Koreader][link-koreader] devices. | 🛠           |
-| **AI-Powered Summarization**    | Generate summaries of books or chapters using AI for quick insights.                       | 🛠           |
-| **Keyboard Navigation**         | Implement vimium-style keybindings for book navigation.                                    | 🔄           |
-| **Support OPDS/Calibre**        | Integrate OPDS/Calibre to access online libraries and catalogs.                            | 🔄           |
-| **Audiobook Support**           | Extend functionality to play and manage audiobooks.                                        | 🔄           |
-| **Handwriting Annotations**     | Add support for handwriting annotations using a pen on compatible devices.                 | 🔄           |
-| **Advanced Reading Stats**      | Track reading time, pages read, and more for detailed insights.                            | 🔄           |
-| **In-Library Full-Text Search** | Search across your entire ebook library to find topics and quotes.                         | 🔄           |
+| **Feature**                                | **Description**                                                                            | **Priority** |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------ | ------------ |
+| [**Sync with Koreader**][link-kosync-wiki] | Synchronize reading progress, notes, and bookmarks with [Koreader][link-koreader] devices. | 🛠           |
+| **AI-Powered Summarization**               | Generate summaries of books or chapters using AI for quick insights.                       | 🛠           |
+| **Keyboard Navigation**                    | Implement vimium-style keybindings for book navigation.                                    | 🔄           |
+| **Support OPDS/Calibre**                   | Integrate OPDS/Calibre to access online libraries and catalogs.                            | 🔄           |
+| **Audiobook Support**                      | Extend functionality to play and manage audiobooks.                                        | 🔄           |
+| **Handwriting Annotations**                | Add support for handwriting annotations using a pen on compatible devices.                 | 🔄           |
+| **Advanced Reading Stats**                 | Track reading time, pages read, and more for detailed insights.                            | 🔄           |
+| **In-Library Full-Text Search**            | Search across your entire ebook library to find topics and quotes.                         | 🔄           |
 
 Stay tuned for continuous improvements and updates! Contributions and suggestions are always welcome—let's build the ultimate reading experience together. 😊
 
@@ -109,9 +110,9 @@ Stay tuned for continuous improvements and updates! Contributions and suggestion
 
 ### Platform-Specific Downloads
 
-- macOS / iOS / iPadOS : Search for "Readest" on the [App Store][link-appstore], also available on TestFlight for beta test (send your Apple ID to <readestapp@gmail.com> to request access).
-- Windows / Linux / Android: Visit [https://readest.com][link-website] or the [Releases on GitHub][link-gh-releases].
-- Web: Visit [https://web.readest.com][link-web-readest].
+- macOS / iOS / iPadOS : Search and install **Readest** on the [App Store][link-appstore], _also_ available on TestFlight for beta test (send your Apple ID to <readestapp@gmail.com> to request access).
+- Windows / Linux / Android: Visit and download **Readest** at [https://readest.com][link-website] or the [Releases on GitHub][link-gh-releases].
+- Web: Visit and use **Readest for Web** at [https://web.readest.com][link-web-readest].
 
 ## Requirements
 
@@ -303,12 +304,14 @@ The following fonts are utilized in this software, either bundled within the app
 [badge-license]: https://img.shields.io/github/license/readest/readest?color=teal
 [badge-release]: https://img.shields.io/github/release/readest/readest?color=green
 [badge-platforms]: https://img.shields.io/badge/platforms-macOS%2C%20Windows%2C%20Linux%2C%20Android%2C%20iOS%2C%20Web%2C%20PWA-green
-[badge-last-commit]: https://img.shields.io/github/last-commit/readest/readest?color=green
-[badge-commit-activity]: https://img.shields.io/github/commit-activity/m/readest/readest
+[badge-last-commit]: https://img.shields.io/github/last-commit/readest/readest?color=blue
+[badge-commit-activity]: https://img.shields.io/github/commit-activity/m/readest/readest?color=blue
 [badge-discord]: https://img.shields.io/discord/1314226120886976544?color=5865F2&label=discord&labelColor=black&logo=discord&logoColor=white&style=flat-square
 [badge-hellogithub]: https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=8a5b6ade2aee461a8bd94e59200682a7&claim_uid=eRLUbPOy2qZtDgw&theme=small
 [badge-donate]: https://donate.readest.com/badge.svg
 [badge-deepwiki]: https://deepwiki.com/badge.svg
+[badge-reddit]: https://img.shields.io/reddit/subreddit-subscribers/readest?style=flat&logo=reddit&color=F37E41
+[badge-language-coverage]: https://img.shields.io/badge/coverage-52%25%20population%20🌍-green
 [link-donate]: https://donate.readest.com/?tickers=btc%2Ceth%2Csol%2Cusdc
 [link-appstore]: https://apps.apple.com/app/apple-store/id6738622779?pt=127463130&ct=github&mt=8
 [link-website]: https://readest.com?utm_source=github&utm_medium=referral&utm_campaign=readme
@@ -322,3 +325,5 @@ The following fonts are utilized in this software, either bundled within the app
 [link-koreader]: https://github.com/koreader/koreader
 [link-hellogithub]: https://hellogithub.com/repository/8a5b6ade2aee461a8bd94e59200682a7
 [link-deepwiki]: https://deepwiki.com/readest/readest
+[link-kosync-wiki]: https://github.com/readest/readest/wiki/Sync-with-Koreader-devices
+[link-reddit]: https://reddit.com/r/readest/

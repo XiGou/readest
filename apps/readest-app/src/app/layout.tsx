@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { EnvProvider } from '@/context/EnvContext';
 import Providers from '@/components/Providers';
 
 import '../styles/globals.css';
@@ -36,12 +37,11 @@ export const viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  themeColor: 'white',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html>
+    <html lang='en'>
       <head>
         <title>{title}</title>
         <meta
@@ -69,7 +69,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name='twitter:image' content={previewImage} />
       </head>
       <body>
-        <Providers>{children}</Providers>
+        <EnvProvider>
+          <Providers>{children}</Providers>
+        </EnvProvider>
       </body>
     </html>
   );

@@ -1,24 +1,30 @@
-import { AppPlatform, AppService, OsPlatform } from '@/types/system';
-
+import { v4 as uuidv4 } from 'uuid';
 import { SystemSettings } from '@/types/settings';
-import { FileSystem, BaseDir } from '@/types/system';
-import { Book, BookConfig, BookContent, BookFormat, ViewSettings } from '@/types/book';
+import { AppPlatform, AppService, OsPlatform } from '@/types/system';
+import { FileSystem, BaseDir, DeleteAction } from '@/types/system';
+import {
+  Book,
+  BookConfig,
+  BookContent,
+  BookFormat,
+  FIXED_LAYOUT_FORMATS,
+  ViewSettings,
+} from '@/types/book';
 import {
   getDir,
   getLocalBookFilename,
   getRemoteBookFilename,
-  getBaseFilename,
   getCoverFilename,
   getConfigFilename,
   getLibraryFilename,
   INIT_BOOK_CONFIG,
   formatTitle,
   formatAuthors,
-  getFilename,
   getPrimaryLanguage,
   getLibraryBackupFilename,
 } from '@/utils/book';
 import { partialMD5 } from '@/utils/md5';
+import { getBaseFilename, getFilename } from '@/utils/path';
 import { BookDoc, DocumentLoader, EXTS } from '@/libs/document';
 import {
   DEFAULT_BOOK_LAYOUT,
@@ -36,6 +42,7 @@ import {
   DEFAULT_MOBILE_READSETTINGS,
   DEFAULT_SCREEN_CONFIG,
   DEFAULT_TRANSLATOR_CONFIG,
+  DEFAULT_FIXED_LAYOUT_VIEW_SETTINGS,
 } from './constants';
 import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 import { getOSPlatform, getTargetLang, isCJKEnv, isContentURI, isValidURL } from '@/utils/misc';
@@ -116,11 +123,17 @@ export abstract class BaseAppService implements AppService {
         ...this.getDefaultViewSettings(),
         ...settings.globalViewSettings,
       };
+
+      if (!settings.kosync.deviceId) {
+        settings.kosync.deviceId = uuidv4();
+        await this.fs.writeFile(fp, base, JSON.stringify(settings));
+      }
     } catch {
       settings = {
         ...DEFAULT_SYSTEM_SETTINGS,
         version: SYSTEM_SETTINGS_VERSION,
         localBooksDir: await this.fs.getPrefix('Books'),
+        koreaderSyncDeviceId: uuidv4(),
         globalReadSettings: {
           ...DEFAULT_READSETTINGS,
           ...(this.isMobile ? DEFAULT_MOBILE_READSETTINGS : {}),
@@ -213,6 +226,7 @@ export abstract class BaseAppService implements AppService {
       };
       // update book metadata when reimporting the same book
       if (existingBook) {
+        existingBook.format = book.format;
         existingBook.title = existingBook.title ?? book.title;
         existingBook.sourceTitle = existingBook.sourceTitle ?? book.sourceTitle;
         existingBook.author = existingBook.author ?? book.author;
@@ -273,16 +287,27 @@ export abstract class BaseAppService implements AppService {
     }
   }
 
-  async deleteBook(book: Book, includingUploaded = false, includingLocal = true): Promise<void> {
-    if (includingLocal) {
-      const localDeleteFps = [getLocalBookFilename(book), getCoverFilename(book)];
+  async deleteBook(book: Book, deleteAction: DeleteAction): Promise<void> {
+    console.log('Deleting book with action:', deleteAction, book.title);
+    if (deleteAction === 'local' || deleteAction === 'both') {
+      const localDeleteFps =
+        deleteAction === 'local'
+          ? [getLocalBookFilename(book)]
+          : [getLocalBookFilename(book), getCoverFilename(book)];
       for (const fp of localDeleteFps) {
         if (await this.fs.exists(fp, 'Books')) {
           await this.fs.removeFile(fp, 'Books');
         }
       }
+      if (deleteAction === 'local') {
+        book.downloadedAt = null;
+      } else {
+        book.deletedAt = Date.now();
+        book.downloadedAt = null;
+        book.coverDownloadedAt = null;
+      }
     }
-    if (includingUploaded) {
+    if (deleteAction === 'cloud' || deleteAction === 'both') {
       const fps = [getRemoteBookFilename(book), getCoverFilename(book)];
       for (const fp of fps) {
         console.log('Deleting uploaded file:', fp);
@@ -293,14 +318,6 @@ export abstract class BaseAppService implements AppService {
           console.log('Failed to delete uploaded file:', error);
         }
       }
-    }
-
-    if (includingLocal) {
-      book.deletedAt = Date.now();
-      book.downloadedAt = null;
-      book.coverDownloadedAt = null;
-    }
-    if (includingUploaded) {
       book.uploadedAt = null;
     }
   }
@@ -494,7 +511,10 @@ export abstract class BaseAppService implements AppService {
   }
 
   async loadBookConfig(book: Book, settings: SystemSettings): Promise<BookConfig> {
-    const { globalViewSettings } = settings;
+    const globalViewSettings = {
+      ...settings.globalViewSettings,
+      ...(FIXED_LAYOUT_FORMATS.has(book.format) ? DEFAULT_FIXED_LAYOUT_VIEW_SETTINGS : {}),
+    };
     try {
       let str = '{}';
       if (await this.fs.exists(getConfigFilename(book), 'Books')) {
@@ -523,7 +543,10 @@ export abstract class BaseAppService implements AppService {
   async saveBookConfig(book: Book, config: BookConfig, settings?: SystemSettings) {
     let serializedConfig: string;
     if (settings) {
-      const { globalViewSettings } = settings;
+      const globalViewSettings = {
+        ...settings.globalViewSettings,
+        ...(FIXED_LAYOUT_FORMATS.has(book.format) ? DEFAULT_FIXED_LAYOUT_VIEW_SETTINGS : {}),
+      };
       serializedConfig = serializeConfig(config, globalViewSettings, DEFAULT_BOOK_SEARCH_CONFIG);
     } else {
       serializedConfig = JSON.stringify(config);
@@ -635,7 +658,11 @@ export abstract class BaseAppService implements AppService {
   }
 
   async updateCoverImage(book: Book, imageUrl?: string, imageFile?: string): Promise<void> {
-    const arrayBuffer = await this.imageToArrayBuffer(imageUrl, imageFile);
-    await this.fs.writeFile(getCoverFilename(book), 'Books', arrayBuffer);
+    if (imageUrl === '_blank') {
+      await this.fs.removeFile(getCoverFilename(book), 'Books');
+    } else if (imageUrl || imageFile) {
+      const arrayBuffer = await this.imageToArrayBuffer(imageUrl, imageFile);
+      await this.fs.writeFile(getCoverFilename(book), 'Books', arrayBuffer);
+    }
   }
 }

@@ -13,6 +13,8 @@ const COMMANDS: &[&str] = &[
     "iap_fetch_products",
     "iap_purchase_product",
     "iap_restore_purchases",
+    "get_system_color_scheme",
+    "get_safe_area_insets",
 ];
 
 fn main() {

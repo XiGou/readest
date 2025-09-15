@@ -1,8 +1,12 @@
 import { create } from 'zustand';
+import { AppService } from '@/types/system';
 import { getThemeCode, ThemeCode } from '@/utils/style';
+import { getSystemColorScheme } from '@/utils/bridge';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import { CustomTheme, Palette, ThemeMode } from '@/styles/themes';
 import { EnvConfigType, isWebAppPlatform } from '@/services/environment';
 import { SystemSettings } from '@/types/settings';
+import { Insets } from '@/types/misc';
 
 interface ThemeState {
   themeMode: ThemeMode;
@@ -13,6 +17,8 @@ interface ThemeState {
   systemUIVisible: boolean;
   statusBarHeight: number;
   systemUIAlwaysHidden: boolean;
+  safeAreaInsets: Insets | null;
+  isRoundedWindow: boolean;
   setSystemUIAlwaysHidden: (hidden: boolean) => void;
   setStatusBarHeight: (height: number) => void;
   showSystemUI: () => void;
@@ -27,6 +33,8 @@ interface ThemeState {
     theme: CustomTheme,
     isDelete?: boolean,
   ) => void;
+  handleSystemThemeChange: (isDark: boolean) => void;
+  updateSafeAreaInsets: (insets: Insets) => void;
 }
 
 const getInitialThemeMode = (): ThemeMode => {
@@ -52,17 +60,6 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     initialThemeMode === 'dark' || (initialThemeMode === 'auto' && systemIsDarkMode);
   const themeCode = getThemeCode();
 
-  if (typeof window !== 'undefined') {
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleSystemThemeChange = () => {
-      const mode = get().themeMode;
-      const isDarkMode = mode === 'dark' || (mode === 'auto' && mediaQuery.matches);
-      set({ systemIsDarkMode: mediaQuery.matches, isDarkMode });
-    };
-
-    mediaQuery?.addEventListener('change', handleSystemThemeChange);
-  }
-
   return {
     themeMode: initialThemeMode,
     themeColor: initialThemeColor,
@@ -72,6 +69,8 @@ export const useThemeStore = create<ThemeState>((set, get) => {
     systemUIVisible: false,
     statusBarHeight: 24,
     systemUIAlwaysHidden: false,
+    safeAreaInsets: { top: 0, right: 0, bottom: 0, left: 0 },
+    isRoundedWindow: true,
     showSystemUI: () => set({ systemUIVisible: true }),
     dismissSystemUI: () => set({ systemUIVisible: false }),
     setStatusBarHeight: (height: number) => set({ statusBarHeight: height }),
@@ -125,5 +124,52 @@ export const useThemeStore = create<ThemeState>((set, get) => {
       const appService = await envConfig.getAppService();
       await appService.saveSettings(settings);
     },
+    handleSystemThemeChange: (systemIsDarkMode) => {
+      const mode = get().themeMode;
+      const isDarkMode = mode === 'dark' || (mode === 'auto' && systemIsDarkMode);
+      set({ systemIsDarkMode, isDarkMode });
+    },
+    updateSafeAreaInsets: (insets) => {
+      set({ safeAreaInsets: insets });
+    },
   };
 });
+
+export const loadDataTheme = () => {
+  if (typeof localStorage === 'undefined' || typeof document === 'undefined') return;
+
+  const themeMode = localStorage.getItem('themeMode');
+  const themeColor = localStorage.getItem('themeColor');
+  if (themeMode && themeColor) {
+    document.documentElement.setAttribute('data-theme', `${themeColor}-${themeMode}`);
+  }
+};
+
+export const initSystemThemeListener = (appService: AppService) => {
+  if (typeof window === 'undefined' || !appService) return;
+
+  const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  const updateColorTheme = async () => {
+    let systemIsDarkMode;
+    if (appService.isIOSApp) {
+      const res = await getSystemColorScheme();
+      systemIsDarkMode = res.colorScheme === 'dark';
+    } else {
+      systemIsDarkMode = mediaQuery.matches;
+    }
+    useThemeStore.getState().handleSystemThemeChange(systemIsDarkMode);
+  };
+
+  const updateWindowTheme = async () => {
+    if (!appService.hasWindow || !appService.isLinuxApp) return;
+    const currentWindow = getCurrentWindow();
+    const isFullscreen = await currentWindow.isFullscreen();
+    const isMaximized = await currentWindow.isMaximized();
+    useThemeStore.setState({ isRoundedWindow: !isMaximized && !isFullscreen });
+  };
+
+  mediaQuery?.addEventListener('change', updateColorTheme);
+  document.addEventListener('visibilitychange', updateColorTheme);
+  window.addEventListener('resize', updateWindowTheme);
+  updateColorTheme();
+};

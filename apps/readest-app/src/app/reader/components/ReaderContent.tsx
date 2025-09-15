@@ -1,8 +1,7 @@
 'use client';
 
 import clsx from 'clsx';
-import * as React from 'react';
-import { useState, useRef, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 import { Book } from '@/types/book';
@@ -68,14 +67,19 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
         if (index === 0) setSideBarBookKey(key);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
+  useEffect(() => {
     const handleShowBookDetails = (event: CustomEvent) => {
-      const book = event.detail as Book;
-      setShowDetailsBook(book);
+      setShowDetailsBook(event.detail as Book);
       return true;
     };
     eventDispatcher.onSync('show-book-details', handleShowBookDetails);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
+    return () => {
+      eventDispatcher.offSync('show-book-details', handleShowBookDetails);
+    };
   }, []);
 
   useEffect(() => {
@@ -91,10 +95,12 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
     }
     window.addEventListener('beforeunload', handleCloseBooks);
     eventDispatcher.on('beforereload', handleCloseBooks);
+    eventDispatcher.on('close-reader', handleCloseBooks);
     eventDispatcher.on('quit-app', handleCloseBooks);
     return () => {
       window.removeEventListener('beforeunload', handleCloseBooks);
       eventDispatcher.off('beforereload', handleCloseBooks);
+      eventDispatcher.off('close-reader', handleCloseBooks);
       eventDispatcher.off('quit-app', handleCloseBooks);
       unlistenOnCloseWindow?.then((fn) => fn());
     };
@@ -106,8 +112,9 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
     const { book } = getBookData(bookKey) || {};
     const { isPrimary } = getViewState(bookKey) || {};
     if (isPrimary && book && config) {
-      eventDispatcher.dispatch('sync-book-progress', { bookKey });
       const settings = useSettingsStore.getState().settings;
+      eventDispatcher.dispatch('sync-book-progress', { bookKey });
+      eventDispatcher.dispatch('flush-kosync', { bookKey });
       await saveConfig(envConfig, bookKey, config, settings);
     }
   };
@@ -138,7 +145,16 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
 
   const handleCloseBooksToLibrary = () => {
     handleCloseBooks();
-    navigateToLibrary(router);
+    if (isTauriAppPlatform()) {
+      const currentWindow = getCurrentWindow();
+      if (currentWindow.label === 'main') {
+        navigateToLibrary(router);
+      } else {
+        currentWindow.close();
+      }
+    } else {
+      navigateToLibrary(router);
+    }
   };
 
   const handleCloseBook = async (bookKey: string) => {
@@ -166,7 +182,7 @@ const ReaderContent: React.FC<{ ids?: string; settings: SystemSettings }> = ({ i
   const bookData = getBookData(bookKeys[0]!);
   const viewSettings = getViewSettings(bookKeys[0]!);
   if (!bookData || !bookData.book || !bookData.bookDoc || !viewSettings) {
-    setTimeout(() => setLoading(true), 300);
+    setTimeout(() => setLoading(true), 200);
     return (
       loading && (
         <div className={clsx('hero hero-content', appService?.isIOSApp ? 'h-[100vh]' : 'h-dvh')}>

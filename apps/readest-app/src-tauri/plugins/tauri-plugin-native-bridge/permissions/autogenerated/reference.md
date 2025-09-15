@@ -18,6 +18,8 @@ Default permissions for the plugin
 - `allow-iap-fetch-products`
 - `allow-iap-purchase-product`
 - `allow-iap-restore-purchases`
+- `allow-get-system-color-scheme`
+- `allow-get-safe-area-insets`
 
 ## Permission Table
 
@@ -109,6 +111,32 @@ Denies the copy_uri_to_path command without any pre-configured scope.
 <tr>
 <td>
 
+`native-bridge:allow-get-safe-area-insets`
+
+</td>
+<td>
+
+Enables the get_safe_area_insets command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-get-safe-area-insets`
+
+</td>
+<td>
+
+Denies the get_safe_area_insets command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `native-bridge:allow-get-status-bar-height`
 
 </td>
@@ -154,6 +182,32 @@ Enables the get_sys_fonts_list command without any pre-configured scope.
 <td>
 
 Denies the get_sys_fonts_list command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:allow-get-system-color-scheme`
+
+</td>
+<td>
+
+Enables the get_system_color_scheme command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-get-system-color-scheme`
+
+</td>
+<td>
+
+Denies the get_system_color_scheme command without any pre-configured scope.
 
 </td>
 </tr>

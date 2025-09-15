@@ -1,9 +1,11 @@
 import { BookMetadata } from '@/libs/document';
 
-export type BookFormat = 'EPUB' | 'PDF' | 'MOBI' | 'CBZ' | 'FB2' | 'FBZ';
+export type BookFormat = 'EPUB' | 'PDF' | 'MOBI' | 'AZW' | 'AZW3' | 'CBZ' | 'FB2' | 'FBZ';
 export type BookNoteType = 'bookmark' | 'annotation' | 'excerpt';
 export type HighlightStyle = 'highlight' | 'underline' | 'squiggly';
 export type HighlightColor = 'red' | 'yellow' | 'green' | 'blue' | 'violet';
+
+export const FIXED_LAYOUT_FORMATS: Set<BookFormat> = new Set(['PDF', 'CBZ']);
 
 export interface Book {
   // if Book is a remote book we just lazy load the book content via url
@@ -124,6 +126,11 @@ export interface BookStyle {
   codeLanguage: string;
   userStylesheet: string;
   userUIStylesheet: string;
+
+  // fixed-layout specific
+  zoomMode: 'fit-page' | 'fit-width' | 'original-size' | 'custom';
+  spreadMode: 'auto' | 'none';
+  keepCoverSpread: boolean;
 }
 
 export interface BookFont {
@@ -149,14 +156,16 @@ export interface ViewConfig {
   showFooter: boolean;
   showRemainingTime: boolean;
   showRemainingPages: boolean;
-  showPageNumber: boolean;
+  showProgressInfo: boolean;
   showBarsOnScroll: boolean;
+  progressStyle: 'percentage' | 'fraction';
 }
 
 export interface TTSConfig {
   ttsRate: number;
   ttsVoice: string;
   ttsLocation: string;
+  showTTSBar: boolean;
 }
 
 export interface TranslatorConfig {
@@ -220,7 +229,8 @@ export interface BookSearchResult {
 export interface BookConfig {
   bookHash?: string;
   progress?: [number, number]; // [current pagenum, total pagenum], 1-based page number
-  location?: string;
+  location?: string; // CFI of the current location
+  xpointer?: string; // XPointer of the current location (for Koreader interoperability)
   booknotes?: BookNote[];
   searchConfig?: Partial<BookSearchConfig>;
   viewSettings?: Partial<ViewSettings>;

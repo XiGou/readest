@@ -187,7 +187,7 @@ const ColorPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset
           </div>
 
           <div className='flex items-center justify-between'>
-            <h2 className=''>{_('Override Book Color')}</h2>
+            <h2 className='font-medium'>{_('Override Book Color')}</h2>
             <input
               type='checkbox'
               className='toggle'
@@ -200,8 +200,16 @@ const ColorPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset
             <h2 className='mb-2 font-medium'>{_('Theme Color')}</h2>
             <div className='grid grid-cols-3 gap-4'>
               {themes.concat(customThemes).map(({ name, label, colors, isCustomizale }) => (
-                <label
+                <button
                   key={name}
+                  tabIndex={0}
+                  onClick={() => setThemeColor(name)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      setThemeColor(name);
+                    }
+                    e.stopPropagation();
+                  }}
                   className={`relative flex cursor-pointer flex-col items-center justify-center rounded-lg p-4 shadow-md ${
                     themeColor === name ? 'ring-2 ring-indigo-500 ring-offset-2' : ''
                   }`}
@@ -213,6 +221,7 @@ const ColorPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset
                   }}
                 >
                   <input
+                    aria-label={_(label)}
                     type='radio'
                     name='theme'
                     value={name}
@@ -231,15 +240,15 @@ const ColorPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset
                       <CgColorPicker size={iconSize16} className='absolute right-2 top-2' />
                     </button>
                   )}
-                </label>
+                </button>
               ))}
-              <label
+              <button
                 className={`relative flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed p-4 shadow-md`}
                 onClick={() => setShowCustomThemeEditor(true)}
               >
                 <PiPlus size={iconSize24} />
                 <span>{_('Custom')}</span>
-              </label>
+              </button>
             </div>
           </div>
 
@@ -264,7 +273,7 @@ const ColorPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset
                     onChange={(event) => setCodeLanguage(event.target.value as CodeLanguage)}
                     options={CODE_LANGUAGES.map((lang) => ({
                       value: lang,
-                      label: lang,
+                      label: lang === 'auto-detect' ? _('Auto') : lang,
                     }))}
                     disabled={!codeHighlighting}
                   />

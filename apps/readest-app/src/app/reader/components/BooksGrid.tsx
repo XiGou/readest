@@ -2,11 +2,12 @@ import clsx from 'clsx';
 import React, { useEffect } from 'react';
 
 import { useEnv } from '@/context/EnvContext';
+import { useThemeStore } from '@/store/themeStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useReaderStore } from '@/store/readerStore';
 import { useSidebarStore } from '@/store/sidebarStore';
 import { useBookDataStore } from '@/store/bookDataStore';
-import { useSafeAreaInsets } from '@/hooks/useSafeAreaInsets';
+import { useTranslation } from '@/hooks/useTranslation';
 import { getGridTemplate, getInsetEdges } from '@/utils/grid';
 import { getViewInsets } from '@/utils/insets';
 import FoliateViewer from './FoliateViewer';
@@ -27,6 +28,7 @@ interface BooksGridProps {
 }
 
 const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
+  const _ = useTranslation();
   const { appService } = useEnv();
   const { getConfig, getBookData } = useBookDataStore();
   const { getProgress, getViewState, getViewSettings } = useReaderStore();
@@ -34,7 +36,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
   const { sideBarBookKey } = useSidebarStore();
   const { isFontLayoutSettingsDialogOpen, setFontLayoutSettingsDialogOpen } = useSettingsStore();
 
-  const screenInsets = useSafeAreaInsets();
+  const { safeAreaInsets: screenInsets } = useThemeStore();
   const aspectRatio = window.innerWidth / window.innerHeight;
   const gridTemplate = getGridTemplate(bookKeys.length, aspectRatio);
 
@@ -75,6 +77,8 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
         gridTemplateColumns: gridTemplate.columns,
         gridTemplateRows: gridTemplate.rows,
       }}
+      role='main'
+      aria-label={_('Books Grid')}
     >
       {bookKeys.map((bookKey, index) => {
         const bookData = getBookData(bookKey);
@@ -123,6 +127,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
               bookKey={bookKey}
               bookDoc={bookDoc}
               config={config}
+              gridInsets={gridInsets}
               contentInsets={contentInsets}
             />
             {viewSettings.vertical && viewSettings.scrolled && (

@@ -13,7 +13,8 @@ import { EnvConfigType } from '@/services/environment';
 import { FoliateView } from '@/types/view';
 import { DocumentLoader, TOCItem } from '@/libs/document';
 import { updateToc } from '@/utils/toc';
-import { formatTitle, getBaseFilename, getPrimaryLanguage } from '@/utils/book';
+import { formatTitle, getPrimaryLanguage } from '@/utils/book';
+import { getBaseFilename } from '@/utils/path';
 import { SUPPORTED_LANGNAMES } from '@/services/constants';
 import { useSettingsStore } from './settingsStore';
 import { useBookDataStore } from './bookDataStore';
@@ -25,6 +26,7 @@ interface ViewState {
   view: FoliateView | null;
   isPrimary: boolean;
   loading: boolean;
+  inited: boolean;
   error: string | null;
   progress: BookProgress | null;
   ribbonVisible: boolean;
@@ -72,6 +74,7 @@ interface ReaderStore {
   getViewState: (key: string) => ViewState | null;
   getGridInsets: (key: string) => Insets | null;
   setGridInsets: (key: string, insets: Insets | null) => void;
+  setViewInited: (key: string, inited: boolean) => void;
 }
 
 export const useReaderStore = create<ReaderStore>((set, get) => ({
@@ -115,6 +118,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
           view: null,
           isPrimary: false,
           loading: true,
+          inited: false,
           error: null,
           progress: null,
           ribbonVisible: false,
@@ -138,6 +142,10 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         console.log('Loading book', key);
         const { book: bookDoc } = await new DocumentLoader(file).open();
         updateToc(bookDoc, config.viewSettings?.sortedTOC ?? false);
+        if (!bookDoc.metadata.title) {
+          bookDoc.metadata.title = getBaseFilename(file.name);
+        }
+        book.sourceTitle = formatTitle(bookDoc.metadata.title);
         // Correct language codes mistakenly set with language names
         if (typeof bookDoc.metadata?.language === 'string') {
           if (bookDoc.metadata.language in SUPPORTED_LANGNAMES) {
@@ -145,10 +153,6 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
           }
         }
         // Set the book's language for formerly imported books, newly imported books have this field set
-        if (!bookDoc.metadata.title) {
-          bookDoc.metadata.title = getBaseFilename(file.name);
-        }
-        book.sourceTitle = formatTitle(bookDoc.metadata.title);
         const primaryLanguage = getPrimaryLanguage(bookDoc.metadata.language);
         book.primaryLanguage = book.primaryLanguage ?? primaryLanguage;
         book.metadata = book.metadata ?? bookDoc.metadata;
@@ -172,6 +176,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
             view: null,
             isPrimary,
             loading: false,
+            inited: false,
             error: null,
             progress: null,
             ribbonVisible: false,
@@ -192,6 +197,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
             view: null,
             isPrimary: false,
             loading: false,
+            inited: false,
             error: 'Failed to load book.',
             progress: null,
             ribbonVisible: false,
@@ -326,7 +332,8 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
       },
     })),
 
-  getGridInsets: (key: string) => get().viewStates[key]?.gridInsets || null,
+  getGridInsets: (key: string) =>
+    get().viewStates[key]?.gridInsets || { top: 0, right: 0, bottom: 0, left: 0 },
   setGridInsets: (key: string, insets: Insets | null) =>
     set((state) => ({
       viewStates: {
@@ -334,6 +341,17 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         [key]: {
           ...state.viewStates[key]!,
           gridInsets: insets,
+        },
+      },
+    })),
+
+  setViewInited: (key: string, inited: boolean) =>
+    set((state) => ({
+      viewStates: {
+        ...state.viewStates,
+        [key]: {
+          ...state.viewStates[key]!,
+          inited,
         },
       },
     })),

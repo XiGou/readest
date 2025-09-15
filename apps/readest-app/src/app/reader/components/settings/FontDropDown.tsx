@@ -35,10 +35,17 @@ const FontItem: React.FC<FontItemProps> = ({ index, style, data }) => {
 
   return (
     <li
-      className='px-1 sm:px-2'
+      role='option'
+      aria-selected={selected === option.option}
+      className='px-2'
       key={option.option}
       style={style}
       onClick={() => onSelect(option.option)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          onSelect(option.option);
+        }
+      }}
     >
       <div className='flex w-full items-center overflow-hidden !px-0 text-sm'>
         <span style={{ minWidth: `${iconSize16}px` }}>
@@ -46,7 +53,11 @@ const FontItem: React.FC<FontItemProps> = ({ index, style, data }) => {
             <MdCheck className='text-base-content' size={iconSize16} />
           )}
         </span>
-        <span style={{ fontFamily: onGetFontFamily(option.option, family) }}>
+        <span
+          className='line-clamp-1 overflow-visible break-all leading-loose'
+          style={{ fontFamily: onGetFontFamily(option.option, family) }}
+          title={option.label || option.option}
+        >
           {option.label || option.option}
         </span>
       </div>
@@ -105,7 +116,7 @@ const FontDropdown: React.FC<DropdownProps> = ({
       >
         <div className='flex items-center gap-x-1'>
           <span
-            className='text-ellipsis'
+            className='line-clamp-1 break-all leading-loose'
             style={{
               fontFamily: onGetFontFamily(selectedOption.option, family ?? ''),
             }}
@@ -116,6 +127,7 @@ const FontDropdown: React.FC<DropdownProps> = ({
         </div>
       </button>
       <ul
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
         className={clsx(
           'dropdown-content bgcolor-base-200 no-triangle menu rounded-box absolute z-[1] mt-4 shadow',
@@ -138,7 +150,7 @@ const FontDropdown: React.FC<DropdownProps> = ({
 
         {/* More options with nested dropdown */}
         {moreOptions && moreOptions.length > 0 && (
-          <li className='dropdown dropdown-left dropdown-top px-1 sm:px-2'>
+          <li className='dropdown dropdown-left dropdown-top px-2'>
             <div className='flex items-center px-0 text-sm'>
               <span style={{ minWidth: `${iconSize}px` }}>
                 <FiChevronLeft size={iconSize} />
@@ -146,6 +158,7 @@ const FontDropdown: React.FC<DropdownProps> = ({
               <span>{_('System Fonts')}</span>
             </div>
             <ul
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
               tabIndex={0}
               className={clsx(
                 'dropdown-content bgcolor-base-200 menu rounded-box relative z-[1] shadow',

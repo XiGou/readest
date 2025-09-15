@@ -11,7 +11,7 @@ jobs:
     env:
       RUSTFLAGS: '-C target-cpu=skylake'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: 'true'
       - name: Install minimal stable with clippy and rustfmt
@@ -38,20 +38,29 @@ jobs:
           - platform: 'web'
           - platform: 'tauri'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: 'true'
 
       - name: setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.15.1
+          version: 10.14.0
 
       - name: setup node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
+
+      - name: cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: apps/readest-app/.next/cache
+          key: nextjs-${{ matrix.config.platform }}-${{ github.sha }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            nextjs-${{ matrix.config.platform }}-${{ github.sha }}-
+            nextjs-${{ matrix.config.platform }}-
 
       - name: install Dependencies
         working-directory: apps/readest-app
@@ -61,7 +70,12 @@ jobs:
       - name: run tests
         working-directory: apps/readest-app
         run: |
-          pnpm test -- --watchAll=false
+          pnpm test -- --watch=false
+
+      - name: run lint
+        working-directory: apps/readest-app
+        run: |
+          pnpm lint
 
       - name: build the web App
         if: matrix.config.platform == 'web'

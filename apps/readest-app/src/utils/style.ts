@@ -86,10 +86,12 @@ const getFontStyles = (
     [style*="font-size: 16px"], [style*="font-size:16px"] {
       font-size: 1rem !important;
     }
-    body * {
+    pre, code, kbd {
+      font-family: var(--monospace);
+    }
+    body *:not(pre):not(code):not(kbd):not(pre *):not(code *):not(kbd *) {
       ${overrideFont ? 'font-family: revert !important;' : ''}
     }
-    
   `;
   return fontStyles;
 };
@@ -117,7 +119,7 @@ const getColorStyles = (
       background-color: var(--theme-bg-color, transparent);
       background: var(--background-set, none);
     }
-    div, p, font, h1, h2, h3, h4, h5, h6 {
+    section, div, p, font, h1, h2, h3, h4, h5, h6 {
       ${overrideColor ? `background-color: ${bg} !important;` : ''}
       ${overrideColor ? `color: ${fg} !important;` : ''}
     }
@@ -128,15 +130,19 @@ const getColorStyles = (
       ${overrideColor ? `color: ${primary};` : isDarkMode ? `color: lightblue;` : ''}
       text-decoration: none;
     }
-    p:has(img), span:has(img) {
-      background-color: ${bg};
-    }
     body.pbg {
       ${isDarkMode ? `background-color: ${bg} !important;` : ''}
     }
     img {
       ${isDarkMode && invertImgColorInDark ? 'filter: invert(100%);' : ''}
       ${!isDarkMode && overrideColor ? 'mix-blend-mode: multiply;' : ''}
+    }
+    /* horizontal rule #1649 */
+    *:has(> hr[class]):not(body) {
+      background-color: ${bg};
+    }
+    hr {
+      mix-blend-mode: multiply;
     }
     /* inline images */
     p img, span img, sup img {
@@ -232,7 +238,7 @@ const getLayoutStyles = (
     letter-spacing: ${letterSpacing}px ${overrideLayout ? '!important' : ''};
     text-indent: ${vertical ? textIndent * 1.2 : textIndent}em ${overrideLayout ? '!important' : ''};
     ${justify ? `text-align: justify ${overrideLayout ? '!important' : ''};` : ''}
-    ${!justify && overrideLayout ? 'text-align: unset !important;' : ''};
+    ${!justify && overrideLayout ? 'text-align: initial !important;' : ''};
     -webkit-hyphens: ${hyphenate ? 'auto' : 'manual'};
     hyphens: ${hyphenate ? 'auto' : 'manual'};
     -webkit-hyphenate-limit-before: 3;
@@ -314,7 +320,7 @@ const getLayoutStyles = (
     width: auto;
     height: auto;
   }
-  .duokan-footnote img {
+  .duokan-footnote img:not([class]) {
     width: 0.8em;
     height: 0.8em;
   }
@@ -356,6 +362,19 @@ export const getFootnoteStyles = () => `
   p, li, blockquote, dd {
     margin: unset !important;
     text-indent: unset !important;
+  }
+
+  div {
+    margin: unset !important;
+    padding: unset !important;
+  }
+
+  .epubtype-footnote,
+  aside[epub|type~="endnote"],
+  aside[epub|type~="footnote"],
+  aside[epub|type~="note"],
+  aside[epub|type~="rearnote"] {
+    display: block;
   }
 `;
 
@@ -487,14 +506,12 @@ export const transformStylesheet = (vw: number, vh: number, css: string) => {
     const hasTextAlignCenter = /text-align\s*:\s*center\s*[;$]/.test(block);
     const hasTextIndentZero = /text-indent\s*:\s*0(?:\.0+)?(?:px|em|rem|%)?\s*[;$]/.test(block);
 
-    if (hasTextAlignCenter) {
+    if (hasTextAlignCenter && hasTextIndentZero) {
       block = block.replace(/(text-align\s*:\s*center)(\s*;|\s*$)/g, '$1 !important$2');
-      if (hasTextIndentZero) {
-        block = block.replace(
-          /(text-indent\s*:\s*0(?:\.0+)?(?:px|em|rem|%)?)(\s*;|\s*$)/g,
-          '$1 !important$2',
-        );
-      }
+      block = block.replace(
+        /(text-indent\s*:\s*0(?:\.0+)?(?:px|em|rem|%)?)(\s*;|\s*$)/g,
+        '$1 !important$2',
+      );
       return selector + block;
     }
     return match;
@@ -521,10 +538,11 @@ export const transformStylesheet = (vw: number, vh: number, css: string) => {
     })
     .replace(/(\d*\.?\d+)vw/gi, (_, d) => (parseFloat(d) * vw) / 100 + 'px')
     .replace(/(\d*\.?\d+)vh/gi, (_, d) => (parseFloat(d) * vh) / 100 + 'px')
-    .replace(/[\s;]color\s*:\s*black/gi, 'color: var(--theme-fg-color)')
-    .replace(/[\s;]color\s*:\s*#000000/gi, 'color: var(--theme-fg-color)')
-    .replace(/[\s;]color\s*:\s*#000/gi, 'color: var(--theme-fg-color)')
-    .replace(/[\s;]color\s*:\s*rgb\(0,\s*0,\s*0\)/gi, 'color: var(--theme-fg-color)');
+    .replace(/([\s;])font-family\s*:\s*monospace/gi, '$1font-family: var(--monospace)')
+    .replace(/([\s;])color\s*:\s*black/gi, '$1color: var(--theme-fg-color)')
+    .replace(/([\s;])color\s*:\s*#000000/gi, '$1color: var(--theme-fg-color)')
+    .replace(/([\s;])color\s*:\s*#000/gi, '$1color: var(--theme-fg-color)')
+    .replace(/([\s;])color\s*:\s*rgb\(0,\s*0,\s*0\)/gi, '$1color: var(--theme-fg-color)');
   return css;
 };
 
@@ -552,7 +570,7 @@ export const applyFixedlayoutStyles = (
   const { bg, fg, primary, isDarkMode } = themeCode;
   const overrideColor = viewSettings.overrideColor!;
   const invertImgColorInDark = viewSettings.invertImgColorInDark!;
-
+  const darkMixBlendMode = bg === '#000000' ? 'luminosity' : 'overlay';
   const existingStyleId = 'fixed-layout-styles';
   let style = document.getElementById(existingStyleId) as HTMLStyleElement;
   if (style) {
@@ -571,9 +589,15 @@ export const applyFixedlayoutStyles = (
       position: relative;
       background-color: var(--theme-bg-color);
     }
+    #canvas {
+      display: inline-block;
+      width: fit-content;
+      height: fit-content;
+      background-color: var(--theme-bg-color);
+    }
     img, canvas {
       ${isDarkMode && invertImgColorInDark ? 'filter: invert(100%);' : ''}
-      ${!isDarkMode && overrideColor ? 'mix-blend-mode: multiply;' : ''}
+      ${overrideColor ? `mix-blend-mode: ${isDarkMode ? darkMixBlendMode : 'multiply'};` : ''}
     }
     img.singlePage {
       position: relative;

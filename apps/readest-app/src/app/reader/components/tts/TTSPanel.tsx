@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import React, { useState, ChangeEvent, useEffect } from 'react';
 import { MdPlayCircle, MdPauseCircle, MdFastRewind, MdFastForward, MdAlarm } from 'react-icons/md';
+import { TbChevronCompactDown, TbChevronCompactUp } from 'react-icons/tb';
 import { RiVoiceAiFill } from 'react-icons/ri';
 import { MdCheck } from 'react-icons/md';
 import { TTSVoicesGroup } from '@/services/tts';
@@ -25,6 +26,7 @@ type TTSPanelProps = {
   onSetVoice: (voice: string, lang: string) => void;
   onGetVoiceId: () => string;
   onSelectTimeout: (bookKey: string, value: number) => void;
+  onToogleTTSBar: () => void;
 };
 
 const getTTSTimeoutOptions = (_: TranslationFunc) => {
@@ -113,6 +115,7 @@ const TTSPanel = ({
   onSetVoice,
   onGetVoiceId,
   onSelectTimeout,
+  onToogleTTSBar,
 }: TTSPanelProps) => {
   const _ = useTranslation();
   const { envConfig } = useEnv();
@@ -200,7 +203,7 @@ const TTSPanel = ({
   const timeoutOptions = getTTSTimeoutOptions(_);
 
   return (
-    <div className='flex w-full flex-col items-center justify-center gap-2 rounded-2xl p-4'>
+    <div className='flex w-full flex-col items-center justify-center gap-2 rounded-2xl px-4 pt-4 sm:gap-1'>
       <div className='flex w-full flex-col items-center gap-0.5'>
         <input
           className='range'
@@ -231,23 +234,39 @@ const TTSPanel = ({
         </div>
       </div>
       <div className='flex items-center justify-between space-x-2'>
-        <button onClick={onBackward} className='rounded-full p-1'>
+        <button
+          onClick={onBackward}
+          className='rounded-full p-1 transition-transform duration-200 hover:scale-105'
+          title={_('Previous Paragraph')}
+          aria-label={_('Previous Paragraph')}
+        >
           <MdFastRewind size={iconSize32} />
         </button>
-        <button onClick={onTogglePlay} className='rounded-full p-1'>
+        <button
+          onClick={onTogglePlay}
+          className='rounded-full p-1 transition-transform duration-200 hover:scale-105'
+          title={isPlaying ? _('Pause') : _('Play')}
+          aria-label={isPlaying ? _('Pause') : _('Play')}
+        >
           {isPlaying ? (
             <MdPauseCircle size={iconSize48} className='fill-primary' />
           ) : (
             <MdPlayCircle size={iconSize48} className='fill-primary' />
           )}
         </button>
-        <button onClick={onForward} className='rounded-full p-1'>
+        <button
+          onClick={onForward}
+          className='rounded-full p-1 transition-transform duration-200 hover:scale-105'
+          title={_('Next Paragraph')}
+          aria-label={_('Next Paragraph')}
+        >
           <MdFastForward size={iconSize32} />
         </button>
         <div className='dropdown dropdown-top'>
           <button
             tabIndex={0}
-            className='flex flex-col items-center justify-center rounded-full p-1'
+            className='flex flex-col items-center justify-center rounded-full p-1 transition-transform duration-200 hover:scale-105'
+            onClick={(e) => e.currentTarget.focus()}
           >
             <MdAlarm size={iconSize32} />
             {timeoutCountdown && (
@@ -262,6 +281,7 @@ const TTSPanel = ({
             )}
           </button>
           <ul
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             className={clsx(
               'dropdown-content bgcolor-base-200 no-triangle menu menu-vertical rounded-box absolute right-0 z-[1] shadow',
@@ -269,6 +289,7 @@ const TTSPanel = ({
             )}
           >
             {timeoutOptions.map((option, index) => (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
               <li
                 key={`${index}-${option.value}`}
                 onClick={() => onSelectTimeout(bookKey, option.value)}
@@ -290,10 +311,15 @@ const TTSPanel = ({
         </div>
 
         <div className='dropdown dropdown-top'>
-          <button tabIndex={0} className='rounded-full p-1'>
+          <button
+            tabIndex={0}
+            className='rounded-full p-1 transition-transform duration-200 hover:scale-105'
+            onClick={(e) => e.currentTarget.focus()}
+          >
             <RiVoiceAiFill size={iconSize32} />
           </button>
           <ul
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             className={clsx(
               'dropdown-content bgcolor-base-200 no-triangle menu menu-vertical rounded-box absolute right-0 z-[1] shadow',
@@ -315,6 +341,7 @@ const TTSPanel = ({
                     </span>
                   </div>
                   {voiceGroup.voices.map((voice, voiceIndex) => (
+                    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions
                     <li
                       key={`${index}-${voiceGroup.id}-${voiceIndex}`}
                       onClick={() => !voice.disabled && handleSelectVoice(voice.id, voice.lang)}
@@ -344,6 +371,15 @@ const TTSPanel = ({
             })}
           </ul>
         </div>
+      </div>
+      <div className='flex h-4 items-center justify-center opacity-60 transition-transform duration-200 hover:scale-105 hover:opacity-100'>
+        <button onClick={onToogleTTSBar} className='p-0'>
+          {viewSettings?.showTTSBar ? (
+            <TbChevronCompactUp size={iconSize48} style={{ transform: 'scaleY(0.85)' }} />
+          ) : (
+            <TbChevronCompactDown size={iconSize48} style={{ transform: 'scaleY(0.85)' }} />
+          )}
+        </button>
       </div>
     </div>
   );

@@ -10,15 +10,16 @@ import {
   ViewConfig,
   ViewSettings,
 } from '@/types/book';
-import { ReadSettings, SystemSettings } from '@/types/settings';
+import { KOSyncSettings, ReadSettings, SystemSettings } from '@/types/settings';
 import { UserStorageQuota, UserDailyTranslationQuota } from '@/types/user';
 import { getDefaultMaxBlockSize, getDefaultMaxInlineSize } from '@/utils/config';
 import { stubTranslation as _ } from '@/utils/misc';
 
 export const LOCAL_BOOKS_SUBDIR = 'Readest/Books';
 export const CLOUD_BOOKS_SUBDIR = 'Readest/Books';
+export const LOCAL_FONTS_SUBDIR = 'Readest/Fonts';
 
-export const SUPPORTED_FILE_EXTS = [
+export const SUPPORTED_BOOK_EXTS = [
   'epub',
   'mobi',
   'azw',
@@ -29,12 +30,23 @@ export const SUPPORTED_FILE_EXTS = [
   'pdf',
   'txt',
 ];
-export const FILE_ACCEPT_FORMATS = SUPPORTED_FILE_EXTS.map((ext) => `.${ext}`).join(', ');
+export const BOOK_ACCEPT_FORMATS = SUPPORTED_BOOK_EXTS.map((ext) => `.${ext}`).join(', ');
 export const BOOK_UNGROUPED_NAME = '';
 export const BOOK_UNGROUPED_ID = '';
 
 export const SUPPORTED_IMAGE_EXTS = ['png', 'jpg', 'jpeg'];
 export const IMAGE_ACCEPT_FORMATS = SUPPORTED_IMAGE_EXTS.map((ext) => `.${ext}`).join(', ');
+
+export const DEFAULT_KOSYNC_SETTINGS = {
+  serverUrl: 'https://sync.koreader.rocks/', // https://kosync.ak-team.com:3042/
+  username: '',
+  userkey: '',
+  deviceId: '',
+  deviceName: '',
+  checksumMethod: 'binary',
+  strategy: 'prompt',
+  enabled: false,
+} as KOSyncSettings;
 
 export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   keepLogin: false,
@@ -52,6 +64,8 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   librarySortBy: 'updated',
   librarySortAscending: false,
   libraryCoverFit: 'crop',
+
+  kosync: DEFAULT_KOSYNC_SETTINGS,
 
   lastSyncedAtBooks: 0,
   lastSyncedAtConfigs: 0,
@@ -137,6 +151,10 @@ export const DEFAULT_BOOK_STYLE: BookStyle = {
   codeLanguage: 'auto-detect',
   userStylesheet: '',
   userUIStylesheet: '',
+
+  zoomMode: 'fit-page',
+  spreadMode: 'auto',
+  keepCoverSpread: true,
 };
 
 export const DEFAULT_MOBILE_VIEW_SETTINGS: Partial<ViewSettings> = {
@@ -152,6 +170,10 @@ export const DEFAULT_CJK_VIEW_SETTINGS: Partial<ViewSettings> = {
   textIndent: 2,
 };
 
+export const DEFAULT_FIXED_LAYOUT_VIEW_SETTINGS: Partial<ViewSettings> = {
+  overrideColor: true,
+};
+
 export const DEFAULT_VIEW_CONFIG: ViewConfig = {
   sideBarTab: 'toc',
   uiLanguage: '',
@@ -165,13 +187,15 @@ export const DEFAULT_VIEW_CONFIG: ViewConfig = {
   showBarsOnScroll: false,
   showRemainingTime: false,
   showRemainingPages: false,
-  showPageNumber: true,
+  showProgressInfo: true,
+  progressStyle: 'fraction',
 };
 
 export const DEFAULT_TTS_CONFIG: TTSConfig = {
   ttsRate: 1.3,
   ttsVoice: '',
   ttsLocation: '',
+  showTTSBar: false,
 };
 
 export const DEFAULT_TRANSLATOR_CONFIG: TranslatorConfig = {
@@ -485,7 +509,6 @@ export const ANDROID_FONTS = [
   'XiHeiti',
 ];
 
-export const CJK_NAMES_PATTENS = /[\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]/;
 export const CJK_EXCLUDE_PATTENS = new RegExp(
   ['AlBayan', 'STIX', 'Kailasa', 'ITCTT', 'Luminari', 'Myanmar'].join('|'),
   'i',
@@ -654,6 +677,10 @@ export const TRANSLATED_LANGS = {
   id: 'Indonesia',
   vi: 'Tiếng Việt',
   th: 'ภาษาไทย',
+  bo: 'བོད་སྐད་',
+  bn: 'বাংলা',
+  ta: 'தமிழ்',
+  si: 'සිංහල',
   'zh-CN': '简体中文',
   'zh-TW': '正體中文',
 };

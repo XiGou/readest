@@ -9,12 +9,13 @@ import { useNotebookStore } from '@/store/notebookStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useThemeStore } from '@/store/themeStore';
 import { useEnv } from '@/context/EnvContext';
-import { useDrag } from '@/hooks/useDrag';
+import { DragKey, useDrag } from '@/hooks/useDrag';
 import { TextSelection } from '@/utils/sel';
 import { BookNote } from '@/types/book';
 import { uniqueId } from '@/utils/misc';
 import { eventDispatcher } from '@/utils/event';
 import { getBookDirFromLanguage } from '@/utils/book';
+import { Overlay } from '@/components/Overlay';
 import BooknoteItem from '../sidebar/BooknoteItem';
 import NotebookHeader from './Header';
 import NoteEditor from './NoteEditor';
@@ -25,7 +26,7 @@ const MAX_NOTEBOOK_WIDTH = 0.45;
 
 const Notebook: React.FC = ({}) => {
   const _ = useTranslation();
-  const { updateAppTheme } = useThemeStore();
+  const { updateAppTheme, safeAreaInsets } = useThemeStore();
   const { envConfig, appService } = useEnv();
   const { settings } = useSettingsStore();
   const { sideBarBookKey } = useSidebarStore();
@@ -33,7 +34,8 @@ const Notebook: React.FC = ({}) => {
   const { notebookNewAnnotation, notebookEditAnnotation, setNotebookPin } = useNotebookStore();
   const { getBookData, getConfig, saveConfig, updateBooknotes } = useBookDataStore();
   const { getView, getViewSettings } = useReaderStore();
-  const { setNotebookWidth, setNotebookVisible, toggleNotebookPin } = useNotebookStore();
+  const { getNotebookWidth, setNotebookWidth, setNotebookVisible, toggleNotebookPin } =
+    useNotebookStore();
   const { setNotebookNewAnnotation, setNotebookEditAnnotation } = useNotebookStore();
 
   const [isSearchBarVisible, setIsSearchBarVisible] = useState(false);
@@ -79,9 +81,7 @@ const Notebook: React.FC = ({}) => {
     settings.globalReadSettings.isNotebookPinned = !isNotebookPinned;
   };
 
-  const handleClickOverlay = (event: React.MouseEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
+  const handleClickOverlay = () => {
     setNotebookVisible(false);
     setNotebookNewAnnotation(null);
     setNotebookEditAnnotation(null);
@@ -138,7 +138,19 @@ const Notebook: React.FC = ({}) => {
     handleNotebookResize(`${Math.round(newWidth * 10000) / 100}%`);
   };
 
-  const { handleDragStart } = useDrag(onDragMove);
+  const onDragKeyDown = (data: { key: DragKey; step: number }) => {
+    const currentWidth = parseFloat(getNotebookWidth()) / 100;
+    let newWidth = currentWidth;
+
+    if (data.key === 'ArrowLeft') {
+      newWidth = Math.max(MIN_NOTEBOOK_WIDTH, currentWidth + data.step);
+    } else if (data.key === 'ArrowRight') {
+      newWidth = Math.min(MAX_NOTEBOOK_WIDTH, currentWidth - data.step);
+    }
+    handleNotebookResize(`${Math.round(newWidth * 10000) / 100}%`);
+  };
+
+  const { handleDragStart, handleDragKeyDown } = useDrag(onDragMove, onDragKeyDown);
 
   const config = getConfig(sideBarBookKey);
   const { booknotes: allNotes = [] } = config || {};
@@ -189,22 +201,24 @@ const Notebook: React.FC = ({}) => {
   return isNotebookVisible ? (
     <>
       {!isNotebookPinned && (
-        <div className='overlay fixed inset-0 z-10 bg-black/20' onClick={handleClickOverlay} />
+        <Overlay className='z-[45] bg-black/20' onDismiss={handleClickOverlay} />
       )}
       <div
         className={clsx(
-          'notebook-container bg-base-200 right-0 z-20 flex min-w-60 select-none flex-col',
+          'notebook-container bg-base-200 right-0 flex min-w-60 select-none flex-col',
           'font-sans text-base font-normal sm:text-sm',
           appService?.isIOSApp ? 'h-[100vh]' : 'h-full',
-          appService?.hasSafeAreaInset && 'pt-[env(safe-area-inset-top)]',
           appService?.hasRoundedWindow && 'rounded-window-top-right rounded-window-bottom-right',
-          !isNotebookPinned && 'shadow-2xl',
+          isNotebookPinned ? 'z-20' : 'z-[45] shadow-2xl',
         )}
+        role='group'
+        aria-label={_('Notebook')}
         dir={viewSettings?.rtl && languageDir === 'rtl' ? 'rtl' : 'ltr'}
         style={{
           width: `${notebookWidth}`,
           maxWidth: `${MAX_NOTEBOOK_WIDTH * 100}%`,
           position: isNotebookPinned ? 'relative' : 'absolute',
+          paddingTop: `${safeAreaInsets?.top || 0}px`,
         }}
       >
         <style jsx>{`
@@ -216,9 +230,15 @@ const Notebook: React.FC = ({}) => {
           }
         `}</style>
         <div
-          className='drag-bar absolute left-0 top-0 -m-2 h-full w-0.5 cursor-col-resize bg-transparent p-2'
+          className='drag-bar absolute -left-2 top-0 h-full w-0.5 cursor-col-resize bg-transparent p-2'
+          role='slider'
+          tabIndex={0}
+          aria-label={_('Resize Notebook')}
+          aria-orientation='horizontal'
+          aria-valuenow={parseFloat(notebookWidth)}
           onMouseDown={handleDragStart}
           onTouchStart={handleDragStart}
+          onKeyDown={handleDragKeyDown}
         />
         <div className='flex-shrink-0'>
           <NotebookHeader
@@ -263,7 +283,13 @@ const Notebook: React.FC = ({}) => {
             {filteredExcerptNotes.map((item, index) => (
               <li key={`${index}-${item.id}`} className='my-2'>
                 <div
+                  role='button'
                   tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Backspace' || e.key === 'Delete') {
+                      handleEditNote(item, true);
+                    }
+                  }}
                   className='collapse-arrow border-base-300 bg-base-100 collapse border'
                 >
                   <div
@@ -283,9 +309,11 @@ const Notebook: React.FC = ({}) => {
                   <div className='collapse-content font-size-xs select-text px-3 pb-0'>
                     <p className='hyphens-auto text-justify'>{item.text}</p>
                     <div className='flex justify-end' dir='ltr'>
+                      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions*/}
                       <div
                         className='font-size-xs cursor-pointer align-bottom text-red-500 hover:text-red-600'
                         onClick={handleEditNote.bind(null, item, true)}
+                        aria-label={_('Delete')}
                       >
                         {_('Delete')}
                       </div>

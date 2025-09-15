@@ -1,15 +1,14 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
-import { MdEdit, MdLock, MdLockOpen, MdOutlineSearch } from 'react-icons/md';
+import { MdEdit, MdDelete, MdLock, MdLockOpen, MdOutlineSearch } from 'react-icons/md';
 
 import { Book } from '@/types/book';
 import { BookMetadata } from '@/libs/document';
 import { useEnv } from '@/context/EnvContext';
 import { useTranslation } from '@/hooks/useTranslation';
 import { flattenContributors, formatAuthors, formatPublisher, formatTitle } from '@/utils/book';
+import { useFileSelector } from '@/hooks/useFileSelector';
 import { FormField } from './FormField';
-import { IMAGE_ACCEPT_FORMATS, SUPPORTED_IMAGE_EXTS } from '@/services/constants';
-import { isTauriAppPlatform } from '@/services/environment';
 import BookCover from '@/components/BookCover';
 
 interface BookDetailEditProps {
@@ -29,6 +28,8 @@ interface BookDetailEditProps {
   onSave: () => void;
 }
 
+const emptyCoverImageUrl = '_blank';
+
 const BookDetailEdit: React.FC<BookDetailEditProps> = ({
   book,
   metadata,
@@ -47,6 +48,7 @@ const BookDetailEdit: React.FC<BookDetailEditProps> = ({
 }) => {
   const _ = useTranslation();
   const { appService } = useEnv();
+  const { selectFiles } = useFileSelector(appService, _);
 
   const hasLockedFields = Object.values(lockedFields).some((locked) => locked);
   const allFieldsLocked = Object.values(lockedFields).every((locked) => locked);
@@ -148,58 +150,30 @@ const BookDetailEdit: React.FC<BookDetailEditProps> = ({
     },
   ];
 
-  const selectImageFileWeb = () => {
-    return new Promise((resolve) => {
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = IMAGE_ACCEPT_FORMATS;
-      fileInput.multiple = false;
-      fileInput.click();
-
-      fileInput.onchange = () => {
-        resolve(fileInput.files);
-      };
-    });
-  };
-
-  const selectImageFileTauri = async () => {
-    const exts = appService?.isMobileApp ? [] : SUPPORTED_IMAGE_EXTS;
-    const files = (await appService?.selectFiles(_('Select Cover Image'), exts)) || [];
-    if (appService?.isIOSApp) {
-      return files.filter((file) => {
-        const fileExt = file.split('.').pop()?.toLowerCase() || 'unknown';
-        return SUPPORTED_IMAGE_EXTS.includes(fileExt);
-      });
-    }
-    return files;
-  };
-
   const handleSelectLocalImage = async () => {
-    let files;
-    if (isTauriAppPlatform()) {
-      files = (await selectImageFileTauri()) as string[];
-      if (appService && files.length > 0) {
-        metadata.coverImageFile = files[0]!;
+    selectFiles({ type: 'covers', multiple: false }).then(async (result) => {
+      if (result.error || result.files.length === 0) return;
+      const selectedFile = result.files[0]!;
+      if (selectedFile.path && appService) {
+        const filePath = selectedFile.path;
+        metadata.coverImageFile = filePath;
         const tempName = `cover-${Date.now()}.png`;
         const cachePrefix = await appService.fs.getPrefix('Cache');
-        await appService.fs.copyFile(files[0]!, tempName, 'Cache');
+        await appService.fs.copyFile(filePath, tempName, 'Cache');
         metadata.coverImageUrl = await appService.fs.getURL(`${cachePrefix}/${tempName}`);
         setNewCoverImageUrl(metadata.coverImageUrl!);
-      }
-    } else {
-      files = (await selectImageFileWeb()) as File[];
-      if (files.length > 0) {
-        metadata.coverImageBlobUrl = URL.createObjectURL(files[0]!);
+      } else if (selectedFile.file) {
+        metadata.coverImageBlobUrl = URL.createObjectURL(selectedFile.file);
         setNewCoverImageUrl(metadata.coverImageBlobUrl!);
       }
-    }
+    });
   };
 
   return (
     <div className='bg-base-100 relative w-full rounded-lg'>
-      <div className='mb-6 flex items-start gap-4'>
-        <div className='flex w-[30%] max-w-32 flex-col gap-2'>
-          <div
+      <div className='mb-6 flex items-stretch gap-4'>
+        <div className='cover-field flex w-[30%] max-w-32 flex-col gap-2'>
+          <button
             className='aspect-[28/41] h-full shadow-md'
             onClick={!isCoverLocked ? handleSelectLocalImage : undefined}
           >
@@ -214,45 +188,65 @@ const BookDetailEdit: React.FC<BookDetailEditProps> = ({
                 ...(newCoverImageUrl ? { coverImageUrl: newCoverImageUrl } : {}),
               }}
             />
-          </div>
-          <div className='flex w-full gap-1'>
+          </button>
+          <div className='flex w-full justify-between gap-1'>
             <button
               onClick={handleSelectLocalImage}
               disabled={isCoverLocked}
               className={clsx(
-                'flex flex-1 items-center justify-center gap-1 rounded px-2 py-1',
-                'border border-gray-300 bg-white hover:bg-gray-50',
-                'disabled:cursor-not-allowed disabled:opacity-50',
-                'text-sm sm:text-xs',
-                isCoverLocked ? '!text-base-content !bg-base-200' : '!text-gray-500',
+                'flex w-1/2 min-w-0 items-center justify-center gap-1 rounded p-1 sm:w-3/5',
+                'text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:text-xs',
+                isCoverLocked ? '!text-base-content bg-base-200' : 'bg-gray-100 !text-gray-500',
               )}
               title={_('Change cover image')}
             >
               <MdEdit
                 className={clsx(
-                  'h-5 w-5 sm:h-4 sm:w-4',
+                  'h-5 w-5 flex-shrink-0 sm:h-4 sm:w-4',
                   isCoverLocked ? 'fill-base-content' : 'fill-gray-600',
                 )}
               />
-              <span className='hidden sm:inline'>{_('Replace')}</span>
+              <span className='hidden truncate sm:inline'>{_('Replace')}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setNewCoverImageUrl(emptyCoverImageUrl);
+                metadata.coverImageUrl = emptyCoverImageUrl;
+                metadata.coverImageFile = undefined;
+                metadata.coverImageBlobUrl = undefined;
+              }}
+              disabled={isCoverLocked}
+              className={clsx(
+                'flex w-1/4 items-center justify-center rounded p-1 sm:w-1/5',
+                'disabled:cursor-not-allowed disabled:opacity-50',
+                'text-red-500 hover:bg-red-50 hover:text-red-600',
+                isCoverLocked ? '!text-base-content bg-base-200' : 'bg-gray-100',
+              )}
+              title={_('Remove cover image')}
+            >
+              <MdDelete className='h-5 w-5 sm:h-4 sm:w-4' />
             </button>
 
             <button
               onClick={() => onToggleFieldLock('coverImageUrl')}
               className={clsx(
-                'flex items-center justify-center rounded px-2 py-1 text-xs',
-                'border border-gray-300 hover:bg-gray-50',
+                'flex w-1/4 items-center justify-center rounded p-1 hover:bg-gray-50 sm:w-1/5',
                 isCoverLocked
                   ? 'bg-green-100 text-green-500 hover:bg-green-200'
-                  : 'bg-white text-gray-500',
+                  : 'bg-gray-100 text-gray-500',
               )}
               title={isCoverLocked ? _('Unlock cover') : _('Lock cover')}
             >
-              {isCoverLocked ? <MdLock className='h-3 w-3' /> : <MdLockOpen className='h-3 w-3' />}
+              {isCoverLocked ? (
+                <MdLock className='h-5 w-5 sm:h-4 sm:w-4' />
+              ) : (
+                <MdLockOpen className='h-5 w-5 sm:h-4 sm:w-4' />
+              )}
             </button>
           </div>
         </div>
-        <div className='flex-1 space-y-4'>
+        <div className='title-fields flex flex-1 flex-col justify-between'>
           {titleAuthorFields.map(({ field, label, required, value, placeholder }) => (
             <FormField
               key={field}
@@ -323,7 +317,7 @@ const BookDetailEdit: React.FC<BookDetailEditProps> = ({
             {searchLoading ? (
               <span className='loading loading-spinner h-4 w-4'></span>
             ) : (
-              <MdOutlineSearch className='h-4 w-4' />
+              <MdOutlineSearch className='mt-[1px] h-4 w-4' />
             )}
             <span className='sm:hidden'>{_('Auto')}</span>
             <span className='hidden sm:inline'>{_('Auto-Retrieve')}</span>

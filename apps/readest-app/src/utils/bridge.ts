@@ -52,6 +52,19 @@ export interface LockScreenRequest {
   orientation: 'portrait' | 'landscape' | 'auto';
 }
 
+export interface GetSystemColorSchemeResponse {
+  colorScheme: 'light' | 'dark';
+  error?: string;
+}
+
+export interface GetSafeAreaInsetsResponse {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+  error?: string;
+}
+
 export async function copyURIToPath(request: CopyURIRequest): Promise<CopyURIResponse> {
   const result = await invoke<CopyURIResponse>('plugin:native-bridge|copy_uri_to_path', {
     payload: request,
@@ -117,4 +130,18 @@ export async function lockScreenOrientation(request: LockScreenRequest): Promise
   await invoke('plugin:native-bridge|lock_screen_orientation', {
     payload: request,
   });
+}
+
+export async function getSystemColorScheme(): Promise<GetSystemColorSchemeResponse> {
+  const result = await invoke<GetSystemColorSchemeResponse>(
+    'plugin:native-bridge|get_system_color_scheme',
+  );
+  return result;
+}
+
+export async function getSafeAreaInsets(): Promise<GetSafeAreaInsetsResponse> {
+  const result = await invoke<GetSafeAreaInsetsResponse>(
+    'plugin:native-bridge|get_safe_area_insets',
+  );
+  return result;
 }

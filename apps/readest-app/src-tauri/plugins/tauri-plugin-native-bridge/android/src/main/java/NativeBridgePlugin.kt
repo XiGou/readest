@@ -198,6 +198,7 @@ class NativeBridgePlugin(private val activity: Activity): Plugin(activity) {
                 }
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                @Suppress("DEPRECATION")
                 window.setDecorFitsSystemWindows(false)
                 val controller = window.insetsController
                 if (controller != null) {
@@ -228,7 +229,7 @@ class NativeBridgePlugin(private val activity: Activity): Plugin(activity) {
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 val compatController = WindowCompat.getInsetsController(window, decorView)
-                compatController?.let {
+                compatController.let {
                     it.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     if (!isDarkMode) {
                         it.isAppearanceLightStatusBars = true
@@ -259,7 +260,9 @@ class NativeBridgePlugin(private val activity: Activity): Plugin(activity) {
                     }
                 }.reduce { acc, flag -> acc or flag }
             }
+            @Suppress("DEPRECATION")
             window.statusBarColor = Color.TRANSPARENT
+            @Suppress("DEPRECATION")
             window.navigationBarColor = Color.TRANSPARENT
             ret.put("success", true)
         } catch (e: Exception) {
@@ -365,5 +368,38 @@ class NativeBridgePlugin(private val activity: Activity): Plugin(activity) {
           }
       }
       invoke.resolve()
+    }
+
+    @Command
+    fun get_safe_area_insets(invoke: Invoke) {
+        val ret = JSObject()
+        try {
+            val rootView = activity.findViewById<View>(android.R.id.content)
+            val windowInsets = androidx.core.view.ViewCompat.getRootWindowInsets(rootView)
+
+            if (windowInsets != null) {
+                val insets = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout()
+                )
+                val density = activity.resources.displayMetrics.density
+                ret.put("top", insets.top / density)
+                ret.put("right", insets.right / density)
+                ret.put("bottom", insets.bottom / density)
+                ret.put("left", insets.left / density)
+            } else {
+                ret.put("top", 0)
+                ret.put("right", 0)
+                ret.put("bottom", 0)
+                ret.put("left", 0)
+            }
+        } catch (e: Exception) {
+            ret.put("error", e.message)
+            ret.put("top", 0)
+            ret.put("right", 0)
+            ret.put("bottom", 0)
+            ret.put("left", 0)
+        }
+        invoke.resolve(ret)
     }
 }

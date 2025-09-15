@@ -1,5 +1,74 @@
 {
   "releases": {
+    "0.9.78": {
+      "date": "2025-09-06",
+      "notes": [
+        "TTS: Added option to keep a persistent TTS bar at the bottom of the screen",
+        "TTS: Added previous/next sentence navigation controls in the TTS bar",
+        "TTS: Added media control support on iOS lock screen and AirPods",
+        "TTS: Fixed an issue where headings could not be highlighted for TTS",
+        "Sync: Fixed occasional sync failures between KOReader and Readest",
+        "Fonts: Grouped font styles into custom font families for easier selection",
+        "Reader: Improved text selection sensitivity when using a stylus",
+        "Reader: Books can now be properly closed using the system back button on Android",
+        "EPUB: Fixed parsing to correctly detect the front cover in some EPUB files",
+        "PDF: Added zoom level, zoom mode, and spread mode settings for PDFs",
+        "Reader: Bookmarks can now be edited directly in the sidebar",
+        "Layout: Prevented layout shift when the virtual keyboard appears on Android",
+        "TXT: Improved chapter detection and added support for nested table of contents in TXT files"
+      ]
+    },
+    "0.9.76": {
+      "date": "2025-08-30",
+      "notes": [
+        "Sync: Moved KOReader sync controls into the reader sidebar with a manual push/pull option",
+        "Sync: Improved tolerance and reliability for KOReader sync operations",
+        "Sync: Added support for more KOReader server implementations",
+        "Fonts: Added support for importing multiple styles within a font family",
+        "Reader: Fixed an issue where footnotes are empty in some EPUB files",
+        "Theme: Applied theme background color for PDFs on macOS",
+        "Reader: Added support for importing AZW3 files on Android",
+        "Reader: Reduced screen flash when launching the app and opening books",
+        "Layout: Fixed an issue where the grouping modal would not appear on Linux"
+      ]
+    },
+    "0.9.75": {
+      "date": "2025-08-22",
+      "notes": [
+        "Fonts: Added support for importing local TTF and ODF fonts",
+        "TTS: Reduced the pause between sentences when using Edge TTS",
+        "TTS: Fixed an issue where voices list could not be opened on older versions of iOS",
+        "TOC: Fixed an issue where nested TOC items would not collapse properly in some books",
+        "Translator: Fixed an issue where translations in the popup did not refresh correctly",
+        "Library: Added option to sort authors with last name first",
+        "Layout: Fixed mismatch in close button position between the reader and library pages",
+        "Layout: Book title now remains centered in the available space",
+        "Layout: Fixed footer bar layout in landscape mode"
+      ]
+    },
+    "0.9.72": {
+      "date": "2025-08-18",
+      "notes": [
+        "Fixed Edge TTS voice playback for EPUBs",
+        "Reduced accidental page flips when toggling toolbars",
+        "Fixed images with background colors not displaying correctly in some books",
+        "Added support for custom KOReader Sync Servers on your local network (LAN)"
+      ]
+    },
+    "0.9.71": {
+      "date": "2025-08-13",
+      "notes": [
+        "Sync: Added two ways to sync reading progress with KOReader devices",
+        "EPUB: Applied monospace font settings",
+        "EPUB: Fixed initial text alignment for some EPUB files",
+        "PDF: Fixed issue opening large PDF files on Android",
+        "TTS: Improved book language detection when language code is invalid",
+        "iOS: Fixed applying system color scheme in auto theme mode",
+        "Config: Added option to choose reading progress display style (percentage or page number)",
+        "Library: Added option to delete only the local copy of a book",
+        "Account: Added 'Reset Password' button in the account page"
+      ]
+    },
     "0.9.69": {
       "date": "2025-08-02",
       "notes": [

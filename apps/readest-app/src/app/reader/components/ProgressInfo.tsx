@@ -1,10 +1,11 @@
 import clsx from 'clsx';
 import React from 'react';
 import { Insets } from '@/types/misc';
+import { PageInfo, TimeInfo } from '@/types/book';
 import { useEnv } from '@/context/EnvContext';
 import { useReaderStore } from '@/store/readerStore';
 import { useTranslation } from '@/hooks/useTranslation';
-import { PageInfo, TimeInfo } from '@/types/book';
+import { formatReadingProgress } from '@/utils/progress';
 
 interface PageInfoProps {
   bookKey: string;
@@ -36,18 +37,19 @@ const ProgressInfoView: React.FC<PageInfoProps> = ({
   const showDoubleBorder = viewSettings.vertical && viewSettings.doubleBorder;
   const isScrolled = viewSettings.scrolled;
   const isVertical = viewSettings.vertical;
-  const pageInfo = ['PDF', 'CBZ'].includes(bookFormat)
-    ? section
+  const { progressStyle: readingProgressStyle } = viewSettings;
+
+  const formatTemplate =
+    readingProgressStyle === 'fraction'
       ? isVertical
-        ? `${section.current + 1} · ${section.total}`
-        : `${section.current + 1} / ${section.total}`
-      : ''
-    : pageinfo && pageinfo.current >= 0 && pageinfo.total > 0
-      ? _(isVertical ? '{{currentPage}} · {{totalPage}}' : 'Loc. {{currentPage}} / {{totalPage}}', {
-          currentPage: pageinfo.current + 1,
-          totalPage: pageinfo.total,
-        })
-      : '';
+        ? '{current} · {total}'
+        : '{current} / {total}'
+      : '{percent}%';
+
+  const progressInfo = ['PDF', 'CBZ'].includes(bookFormat)
+    ? formatReadingProgress(section?.current, section?.total, formatTemplate)
+    : formatReadingProgress(pageinfo?.current, pageinfo?.total, formatTemplate);
+
   const timeLeft = timeinfo
     ? _('{{time}} min left in chapter', { time: Math.round(timeinfo.section) })
     : '';
@@ -60,9 +62,11 @@ const ProgressInfoView: React.FC<PageInfoProps> = ({
       className={clsx(
         'progressinfo absolute bottom-0 flex items-center justify-between',
         'text-neutral-content font-sans text-xs font-extralight',
-        isVertical ? 'writing-vertical-rl' : 'h-[52px] w-full',
+        isVertical ? 'writing-vertical-rl' : 'w-full',
         isScrolled && !isVertical && 'bg-base-100',
       )}
+      role='group'
+      aria-label={_('Progress Information')}
       style={
         isVertical
           ? {
@@ -76,16 +80,23 @@ const ProgressInfoView: React.FC<PageInfoProps> = ({
           : {
               paddingInlineStart: `calc(${horizontalGap / 2}% + ${contentInsets.left}px)`,
               paddingInlineEnd: `calc(${horizontalGap / 2}% + ${contentInsets.right}px)`,
-              paddingBottom: appService?.hasSafeAreaInset ? `${gridInsets.bottom * 0.67}px` : 0,
+              paddingBottom: appService?.hasSafeAreaInset ? `${gridInsets.bottom * 0.33}px` : 0,
             }
       }
     >
-      {viewSettings.showRemainingTime ? (
-        <span className='text-start'>{timeLeft}</span>
-      ) : viewSettings.showRemainingPages ? (
-        <span className='text-start'>{pageLeft}</span>
-      ) : null}
-      {viewSettings.showPageNumber && <span className='ms-auto text-end'>{pageInfo}</span>}
+      <div
+        className={clsx(
+          'flex items-center justify-center',
+          isVertical ? 'h-full' : 'h-[52px] w-full',
+        )}
+      >
+        {viewSettings.showRemainingTime ? (
+          <span className='text-start'>{timeLeft}</span>
+        ) : viewSettings.showRemainingPages ? (
+          <span className='text-start'>{pageLeft}</span>
+        ) : null}
+        {viewSettings.showProgressInfo && <span className='ms-auto text-end'>{progressInfo}</span>}
+      </div>
     </div>
   );
 };

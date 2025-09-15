@@ -1,9 +1,10 @@
 import { EXTS } from '@/libs/document';
 import { Book, BookConfig, BookProgress, WritingMode } from '@/types/book';
-import { getUserLang, isContentURI, isFileURI, isValidURL, makeSafeFilename } from './misc';
+import { SUPPORTED_LANGS } from '@/services/constants';
+import { getUserLang, makeSafeFilename } from './misc';
 import { getStorageType } from './storage';
 import { getDirFromLanguage } from './rtl';
-import { SUPPORTED_LANGS } from '@/services/constants';
+import { code6392to6391, isValidLang, normalizedLangCode } from './lang';
 
 export const getDir = (book: Book) => {
   return `${book.hash}`;
@@ -35,20 +36,6 @@ export const getConfigFilename = (book: Book) => {
 };
 export const isBookFile = (filename: string) => {
   return Object.values(EXTS).includes(filename.split('.').pop()!);
-};
-export const getFilename = (fileOrUri: string) => {
-  if (isValidURL(fileOrUri) || isContentURI(fileOrUri) || isFileURI(fileOrUri)) {
-    fileOrUri = decodeURI(fileOrUri);
-  }
-  const normalizedPath = fileOrUri.replace(/\\/g, '/');
-  const parts = normalizedPath.split('/');
-  const lastPart = parts.pop()!;
-  return lastPart.split('?')[0]!;
-};
-export const getBaseFilename = (filename: string) => {
-  const normalizedPath = filename.replace(/\\/g, '/');
-  const baseName = normalizedPath.split('/').pop()?.split('.').slice(0, -1).join('.') || '';
-  return baseName;
 };
 
 export const INIT_BOOK_CONFIG: BookConfig = {
@@ -104,21 +91,38 @@ export const flattenContributors = (
       : formatLanguageMap(contributors?.name);
 };
 
+// prettier-ignore
+const LASTNAME_AUTHOR_SORT_LANGS = [ 'ar', 'bo', 'de', 'en', 'es', 'fr', 'hi', 'it', 'nl', 'pl', 'pt', 'ru', 'th', 'tr', 'uk' ];
+
+const formatAuthorName = (name: string, lastNameFirst: boolean) => {
+  if (!name) return '';
+  const parts = name.split(' ');
+  if (lastNameFirst && parts.length > 1) {
+    return `${parts[parts.length - 1]}, ${parts.slice(0, -1).join(' ')}`;
+  }
+  return name;
+};
+
 export const formatAuthors = (
   contributors: string | string[] | Contributor | Contributor[],
   bookLang?: string | string[],
+  sortAs?: boolean,
 ) => {
   const langCode = getBookLangCode(bookLang) || 'en';
+  const lastNameFirst = !!sortAs && LASTNAME_AUTHOR_SORT_LANGS.includes(langCode);
   return Array.isArray(contributors)
     ? listFormater(langCode === 'zh', langCode).format(
         contributors.map((contributor) =>
-          typeof contributor === 'string' ? contributor : formatLanguageMap(contributor?.name),
+          typeof contributor === 'string'
+            ? formatAuthorName(contributor, lastNameFirst)
+            : formatAuthorName(formatLanguageMap(contributor?.name), lastNameFirst),
         ),
       )
     : typeof contributors === 'string'
-      ? contributors
-      : formatLanguageMap(contributors?.name);
+      ? formatAuthorName(contributors, lastNameFirst)
+      : formatAuthorName(formatLanguageMap(contributors?.name), lastNameFirst);
 };
+
 export const formatTitle = (title: string | LanguageMap) => {
   return typeof title === 'string' ? title : formatLanguageMap(title);
 };
@@ -137,8 +141,14 @@ export const formatLanguage = (lang: string | string[] | undefined): string => {
     : langCodeToLangName(lang || '');
 };
 
+// Should return valid ISO-639-1 language code, fallback to 'en' if not valid
 export const getPrimaryLanguage = (lang: string | string[] | undefined) => {
-  return Array.isArray(lang) ? lang[0] : lang;
+  const primaryLang = Array.isArray(lang) ? lang[0] : lang;
+  if (isValidLang(primaryLang)) {
+    const normalizedLang = normalizedLangCode(primaryLang);
+    return code6392to6391(normalizedLang) || normalizedLang;
+  }
+  return 'en';
 };
 
 export const formatDate = (date: string | number | Date | null | undefined, isUTC = false) => {

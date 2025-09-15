@@ -7,12 +7,17 @@ import { useEnv } from '@/context/EnvContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useReaderStore } from '@/store/readerStore';
 import { useBookDataStore } from '@/store/bookDataStore';
+import { useSettingsStore } from '@/store/settingsStore';
+import { useCustomFontStore } from '@/store/customFontStore';
 import { useParallelViewStore } from '@/store/parallelViewStore';
 import { useMouseEvent, useTouchEvent } from '../hooks/useIframeEvents';
 import { usePagination } from '../hooks/usePagination';
 import { useFoliateEvents } from '../hooks/useFoliateEvents';
 import { useProgressSync } from '../hooks/useProgressSync';
 import { useProgressAutoSave } from '../hooks/useProgressAutoSave';
+import { useAutoFocus } from '@/hooks/useAutoFocus';
+import { useTranslation } from '@/hooks/useTranslation';
+import { useKOSync } from '../hooks/useKOSync';
 import {
   applyFixedlayoutStyles,
   applyImageStyle,
@@ -20,7 +25,7 @@ import {
   getStyles,
   transformStylesheet,
 } from '@/utils/style';
-import { mountAdditionalFonts } from '@/utils/font';
+import { mountAdditionalFonts, mountCustomFont } from '@/styles/fonts';
 import { getBookDirFromLanguage, getBookDirFromWritingMode } from '@/utils/book';
 import { useUICSS } from '@/hooks/useUICSS';
 import {
@@ -42,6 +47,9 @@ import { lockScreenOrientation } from '@/utils/bridge';
 import { useTextTranslation } from '../hooks/useTextTranslation';
 import { manageSyntaxHighlighting } from '@/utils/highlightjs';
 import { getViewInsets } from '@/utils/insets';
+import { removeTabIndex } from '@/utils/a11y';
+import Spinner from '@/components/Spinner';
+import KOSyncConflictResolver from './KOSyncResolver';
 
 declare global {
   interface Window {
@@ -53,14 +61,19 @@ const FoliateViewer: React.FC<{
   bookKey: string;
   bookDoc: BookDoc;
   config: BookConfig;
+  gridInsets: Insets;
   contentInsets: Insets;
-}> = ({ bookKey, bookDoc, config, contentInsets: insets }) => {
-  const { getView, setView: setFoliateView, setProgress } = useReaderStore();
-  const { getViewSettings, setViewSettings } = useReaderStore();
+}> = ({ bookKey, bookDoc, config, gridInsets, contentInsets: insets }) => {
+  const _ = useTranslation();
+  const { appService, envConfig } = useEnv();
+  const { themeCode, isDarkMode } = useThemeStore();
+  const { settings } = useSettingsStore();
+  const { loadCustomFonts, getLoadedFonts } = useCustomFontStore();
+  const { getView, setView: setFoliateView, setViewInited, setProgress } = useReaderStore();
+  const { getViewState, getViewSettings, setViewSettings } = useReaderStore();
   const { getParallels } = useParallelViewStore();
   const { getBookData } = useBookDataStore();
-  const { appService } = useEnv();
-  const { themeCode, isDarkMode } = useThemeStore();
+  const viewState = getViewState(bookKey);
   const viewSettings = getViewSettings(bookKey);
 
   const viewRef = useRef<FoliateView | null>(null);
@@ -68,6 +81,10 @@ const FoliateViewer: React.FC<{
   const isViewCreated = useRef(false);
   const doubleClickDisabled = useRef(!!viewSettings?.disableDoubleClick);
   const [toastMessage, setToastMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const docLoaded = useRef(false);
+
+  useAutoFocus<HTMLDivElement>({ ref: containerRef });
 
   useEffect(() => {
     const timer = setTimeout(() => setToastMessage(''), 2000);
@@ -77,6 +94,7 @@ const FoliateViewer: React.FC<{
   useUICSS(bookKey);
   useProgressSync(bookKey);
   useProgressAutoSave(bookKey);
+  const { syncState, conflictDetails, resolveWithLocal, resolveWithRemote } = useKOSync(bookKey);
   useTextTranslation(bookKey, viewRef.current);
 
   const progressRelocateHandler = (event: Event) => {
@@ -105,7 +123,7 @@ const FoliateViewer: React.FC<{
               bookKey,
               viewSettings,
               content: data,
-              transformers: ['punctuation', 'footnote'],
+              transformers: ['punctuation', 'footnote', 'language'],
             };
             return Promise.resolve(transformContent(ctx));
           }
@@ -119,6 +137,8 @@ const FoliateViewer: React.FC<{
   };
 
   const docLoadHandler = (event: Event) => {
+    setLoading(false);
+    docLoaded.current = true;
     const detail = (event as CustomEvent).detail;
     console.log('doc index loaded:', detail.index);
     if (detail.doc) {
@@ -136,11 +156,17 @@ const FoliateViewer: React.FC<{
 
       mountAdditionalFonts(detail.doc, isCJKLang(bookData.book?.primaryLanguage));
 
+      getLoadedFonts().forEach((font) => {
+        mountCustomFont(detail.doc, font);
+      });
+
       if (bookDoc.rendition?.layout === 'pre-paginated') {
         applyFixedlayoutStyles(detail.doc, viewSettings);
       }
 
       applyImageStyle(detail.doc);
+
+      removeTabIndex(detail.doc);
 
       // Inline scripts in tauri platforms are not executed by default
       if (viewSettings.allowScript && isTauriAppPlatform()) {
@@ -204,7 +230,7 @@ const FoliateViewer: React.FC<{
 
   const { handlePageFlip, handleContinuousScroll } = usePagination(bookKey, viewRef, containerRef);
   const mouseHandlers = useMouseEvent(bookKey, handlePageFlip, handleContinuousScroll);
-  const touchHandlers = useTouchEvent(bookKey, handleContinuousScroll);
+  const touchHandlers = useTouchEvent(bookKey, handlePageFlip, handleContinuousScroll);
 
   useFoliateEvents(viewRef.current, {
     onLoad: docLoadHandler,
@@ -215,6 +241,8 @@ const FoliateViewer: React.FC<{
   useEffect(() => {
     if (isViewCreated.current) return;
     isViewCreated.current = true;
+
+    setTimeout(() => setLoading(true), 200);
 
     const openBook = async () => {
       console.log('Opening book', bookKey);
@@ -234,6 +262,12 @@ const FoliateViewer: React.FC<{
         } else if (languageDir !== 'auto') {
           bookDoc.dir = languageDir;
         }
+      }
+
+      if (bookDoc.rendition?.layout === 'pre-paginated' && bookDoc.sections) {
+        bookDoc.rendition.spread = viewSettings.spreadMode;
+        const coverSide = bookDoc.dir === 'rtl' ? 'right' : 'left';
+        bookDoc.sections[0]!.pageSpread = viewSettings.keepCoverSpread ? '' : coverSide;
       }
 
       await view.open(bookDoc);
@@ -271,9 +305,15 @@ const FoliateViewer: React.FC<{
       } else {
         view.renderer.removeAttribute('animated');
       }
-      view.renderer.setAttribute('max-column-count', maxColumnCount);
-      view.renderer.setAttribute('max-inline-size', `${maxInlineSize}px`);
-      view.renderer.setAttribute('max-block-size', `${maxBlockSize}px`);
+      if (bookDoc?.rendition?.layout === 'pre-paginated') {
+        view.renderer.setAttribute('zoom', viewSettings.zoomMode);
+        view.renderer.setAttribute('spread', viewSettings.spreadMode);
+        view.renderer.setAttribute('scale-factor', viewSettings.zoomLevel);
+      } else {
+        view.renderer.setAttribute('max-column-count', maxColumnCount);
+        view.renderer.setAttribute('max-inline-size', `${maxInlineSize}px`);
+        view.renderer.setAttribute('max-block-size', `${maxBlockSize}px`);
+      }
       applyMarginAndGap();
 
       const lastLocation = config.location;
@@ -282,6 +322,7 @@ const FoliateViewer: React.FC<{
       } else {
         await view.goToFraction(0);
       }
+      setViewInited(bookKey, true);
     };
 
     openBook();
@@ -290,6 +331,7 @@ const FoliateViewer: React.FC<{
 
   const applyMarginAndGap = () => {
     const viewSettings = getViewSettings(bookKey)!;
+    const viewState = getViewState(bookKey);
     const viewInsets = getViewInsets(viewSettings);
     const showDoubleBorder = viewSettings.vertical && viewSettings.doubleBorder;
     const showDoubleBorderHeader = showDoubleBorder && viewSettings.showHeader;
@@ -297,7 +339,11 @@ const FoliateViewer: React.FC<{
     const showTopHeader = viewSettings.showHeader && !viewSettings.vertical;
     const showBottomFooter = viewSettings.showFooter && !viewSettings.vertical;
     const moreTopInset = showTopHeader ? Math.max(0, 44 - insets.top) : 0;
-    const moreBottomInset = showBottomFooter ? Math.max(0, 44 - insets.bottom) : 0;
+    const ttsBarHeight =
+      viewState?.ttsEnabled && viewSettings.showTTSBar ? 52 + gridInsets.bottom * 0.33 : 0;
+    const moreBottomInset = showBottomFooter
+      ? Math.max(0, Math.max(ttsBarHeight, 44) - insets.bottom)
+      : Math.max(0, ttsBarHeight);
     const moreRightInset = showDoubleBorderHeader ? 32 : 0;
     const moreLeftInset = showDoubleBorderFooter ? 32 : 0;
     const topMargin = (showTopHeader ? insets.top : viewInsets.top) + moreTopInset;
@@ -328,6 +374,21 @@ const FoliateViewer: React.FC<{
   }, [themeCode, isDarkMode, viewSettings?.overrideColor, viewSettings?.invertImgColorInDark]);
 
   useEffect(() => {
+    const mountCustomFonts = async () => {
+      await loadCustomFonts(envConfig);
+      getLoadedFonts().forEach((font) => {
+        mountCustomFont(document, font);
+        const docs = viewRef.current?.renderer.getContents();
+        docs?.forEach(({ doc }) => mountCustomFont(doc, font));
+      });
+    };
+    if (settings.customFonts) {
+      mountCustomFonts();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.customFonts, envConfig]);
+
+  useEffect(() => {
     if (viewRef.current && viewRef.current.renderer) {
       doubleClickDisabled.current = !!viewSettings?.disableDoubleClick;
     }
@@ -346,15 +407,31 @@ const FoliateViewer: React.FC<{
     viewSettings?.doubleBorder,
     viewSettings?.showHeader,
     viewSettings?.showFooter,
+    viewSettings?.showTTSBar,
+    viewState?.ttsEnabled,
   ]);
 
   return (
-    <div
-      ref={containerRef}
-      className='foliate-viewer h-[100%] w-[100%]'
-      {...mouseHandlers}
-      {...touchHandlers}
-    />
+    <>
+      <div
+        ref={containerRef}
+        tabIndex={-1}
+        role='document'
+        aria-label={_('Book Content')}
+        className='foliate-viewer h-[100%] w-[100%] focus:outline-none'
+        {...mouseHandlers}
+        {...touchHandlers}
+      />
+      {!docLoaded.current && loading && <Spinner loading={true} />}
+      {syncState === 'conflict' && conflictDetails && (
+        <KOSyncConflictResolver
+          details={conflictDetails}
+          onResolveWithLocal={resolveWithLocal}
+          onResolveWithRemote={resolveWithRemote}
+          onClose={resolveWithLocal}
+        />
+      )}
+    </>
   );
 };
 

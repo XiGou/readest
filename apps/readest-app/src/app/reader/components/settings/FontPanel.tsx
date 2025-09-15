@@ -1,11 +1,11 @@
 import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
+import { MdSettings } from 'react-icons/md';
 
 import {
   ANDROID_FONTS,
   CJK_EXCLUDE_PATTENS,
   CJK_FONTS_PATTENS,
-  CJK_NAMES_PATTENS,
   CJK_SANS_SERIF_FONTS,
   CJK_SERIF_FONTS,
   IOS_FONTS,
@@ -17,27 +17,33 @@ import {
   SERIF_FONTS,
   WINDOWS_FONTS,
 } from '@/services/constants';
+import { useEnv } from '@/context/EnvContext';
 import { useReaderStore } from '@/store/readerStore';
 import { useTranslation } from '@/hooks/useTranslation';
-import { useEnv } from '@/context/EnvContext';
+import { useSettingsStore } from '@/store/settingsStore';
+import { useCustomFontStore } from '@/store/customFontStore';
+import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { getOSPlatform, isCJKEnv } from '@/utils/misc';
 import { getSysFontsList } from '@/utils/bridge';
+import { isCJKStr } from '@/utils/lang';
 import { isTauriAppPlatform } from '@/services/environment';
 import { saveViewSettings } from '../../utils/viewSettingsHelper';
 import { useResetViewSettings } from '../../hooks/useResetSettings';
 import { SettingsPanelPanelProp } from './SettingsDialog';
 import NumberInput from './NumberInput';
 import FontDropdown from './FontDropDown';
+import CustomFonts from './CustomFonts';
 
 const genCJKFontsList = (sysFonts: string[]) => {
   return Array.from(new Set([...sysFonts, ...CJK_SERIF_FONTS, ...CJK_SANS_SERIF_FONTS]))
-    .filter((font) => CJK_FONTS_PATTENS.test(font) || CJK_NAMES_PATTENS.test(font))
+    .filter((font) => CJK_FONTS_PATTENS.test(font) || isCJKStr(font))
     .filter((font) => !CJK_EXCLUDE_PATTENS.test(font))
     .sort((a, b) => a.localeCompare(b));
 };
 
 const isSymbolicFontName = (font: string) =>
   /emoji|icons|symbol|dingbats|ornaments|webdings|wingdings|miuiex/i.test(font);
+
 interface FontFaceProps {
   className?: string;
   family: string;
@@ -68,7 +74,7 @@ const FontFace = ({
   const _ = useTranslation();
   return (
     <div className={clsx('config-item', className)}>
-      <span className='min-w-10'>{label}</span>
+      <span className='line-clamp-2 min-w-10'>{label}</span>
       <FontDropdown
         family={family}
         options={options.map((option) => ({ option, label: _(option) }))}
@@ -83,10 +89,19 @@ const FontFace = ({
 
 const FontPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset }) => {
   const _ = useTranslation();
-  const { envConfig } = useEnv();
+  const { envConfig, appService } = useEnv();
   const { getView, getViewSettings } = useReaderStore();
+  const { fontPanelView, setFontPanelView } = useSettingsStore();
+  const {
+    fonts: allCustomFonts,
+    getAllFonts,
+    getFontFamilies,
+    removeFont,
+    saveCustomFonts,
+  } = useCustomFontStore();
   const viewSettings = getViewSettings(bookKey)!;
   const view = getView(bookKey)!;
+  const iconSize18 = useResponsiveSize(18);
 
   const fontFamilyOptions = [
     {
@@ -130,8 +145,10 @@ const FontPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
   const [sansSerifFont, setSansSerifFont] = useState(viewSettings.sansSerifFont!);
   const [monospaceFont, setMonospaceFont] = useState(viewSettings.monospaceFont!);
   const [fontWeight, setFontWeight] = useState(viewSettings.fontWeight!);
+
+  const [customFonts, setCustomFonts] = useState<string[]>(getFontFamilies());
   const [CJKFonts, setCJKFonts] = useState<string[]>(() => {
-    return genCJKFontsList(sysFonts);
+    return genCJKFontsList([...customFonts, ...sysFonts]);
   });
 
   const resetToDefaults = useResetViewSettings();
@@ -148,19 +165,43 @@ const FontPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
       monospaceFont: setMonospaceFont,
       fontWeight: setFontWeight,
     });
+    getAllFonts().forEach((font) => {
+      if (removeFont(font.id)) {
+        appService!.fs.removeFile(font.path, 'Fonts');
+      }
+    });
+    saveCustomFonts(envConfig);
+  };
+
+  const handleManageCustomFonts = () => {
+    setFontPanelView('custom-fonts');
+  };
+
+  const handleBackToMain = () => {
+    setFontPanelView('main-fonts');
   };
 
   useEffect(() => {
     onRegisterReset(handleReset);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [appService]);
 
   useEffect(() => {
     setCJKFonts((prev) => {
-      const newFonts = genCJKFontsList(sysFonts);
+      const newFonts = genCJKFontsList([...customFonts, ...sysFonts]);
       return prev.length !== newFonts.length ? newFonts : prev;
     });
-  }, [sysFonts]);
+  }, [customFonts, sysFonts]);
+
+  useEffect(() => {
+    setCustomFonts(getFontFamilies());
+  }, [allCustomFonts, getFontFamilies]);
+
+  useEffect(() => {
+    setSerifFont(viewSettings.serifFont);
+    setSansSerifFont(viewSettings.sansSerifFont);
+    setMonospaceFont(viewSettings.monospaceFont);
+  }, [viewSettings.serifFont, viewSettings.sansSerifFont, viewSettings.monospaceFont]);
 
   useEffect(() => {
     if (isTauriAppPlatform()) {
@@ -247,10 +288,18 @@ const FontPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
     }
   };
 
+  if (fontPanelView === 'custom-fonts') {
+    return (
+      <div className='my-4 w-full'>
+        <CustomFonts bookKey={bookKey} onBack={handleBackToMain} />
+      </div>
+    );
+  }
+
   return (
     <div className='my-4 w-full space-y-6'>
       <div className='flex items-center justify-between'>
-        <h2 className=''>{_('Override Book Font')}</h2>
+        <h2 className='font-medium'>{_('Override Book Font')}</h2>
         <input
           type='checkbox'
           className='toggle'
@@ -326,14 +375,27 @@ const FontPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
       </div>
 
       <div className='w-full'>
-        <h2 className='mb-2 font-medium'>{_('Font Face')}</h2>
+        <div className='mb-2 flex items-center justify-between'>
+          <h2 className='font-medium'>{_('Font Face')}</h2>
+          <button
+            onClick={handleManageCustomFonts}
+            className='btn btn-ghost btn-xs gap-1 hover:bg-transparent'
+            title={_('Manage Custom Fonts')}
+          >
+            <MdSettings size={iconSize18} />
+          </button>
+        </div>
         <div className='card border-base-200 border shadow'>
           <div className='divide-base-200 divide-y'>
             <FontFace
               className='config-item-top'
               family='serif'
               label={_('Serif Font')}
-              options={[...SERIF_FONTS.filter(filterNonFreeFonts), ...CJK_SERIF_FONTS]}
+              options={[
+                ...customFonts,
+                ...SERIF_FONTS.filter(filterNonFreeFonts),
+                ...CJK_SERIF_FONTS,
+              ]}
               moreOptions={sysFonts}
               selected={serifFont}
               onSelect={setSerifFont}
@@ -341,7 +403,11 @@ const FontPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
             <FontFace
               family='sans-serif'
               label={_('Sans-Serif Font')}
-              options={[...SANS_SERIF_FONTS.filter(filterNonFreeFonts), ...CJK_SANS_SERIF_FONTS]}
+              options={[
+                ...customFonts,
+                ...SANS_SERIF_FONTS.filter(filterNonFreeFonts),
+                ...CJK_SANS_SERIF_FONTS,
+              ]}
               moreOptions={sysFonts}
               selected={sansSerifFont}
               onSelect={setSansSerifFont}
@@ -350,7 +416,7 @@ const FontPanel: React.FC<SettingsPanelPanelProp> = ({ bookKey, onRegisterReset 
               className='config-item-bottom'
               family='monospace'
               label={_('Monospace Font')}
-              options={MONOSPACE_FONTS}
+              options={[...customFonts, ...MONOSPACE_FONTS]}
               moreOptions={sysFonts}
               selected={monospaceFont}
               onSelect={setMonospaceFont}

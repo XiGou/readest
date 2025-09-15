@@ -8,27 +8,23 @@ import { OverlayScrollbarsComponent, OverlayScrollbarsComponentRef } from 'overl
 import 'overlayscrollbars/overlayscrollbars.css';
 
 import { Book } from '@/types/book';
-import { AppService } from '@/types/system';
+import { AppService, DeleteAction } from '@/types/system';
 import { navigateToLogin, navigateToReader } from '@/utils/nav';
-import {
-  formatAuthors,
-  formatTitle,
-  getFilename,
-  getPrimaryLanguage,
-  listFormater,
-} from '@/utils/book';
+import { formatAuthors, formatTitle, getPrimaryLanguage, listFormater } from '@/utils/book';
 import { eventDispatcher } from '@/utils/event';
 import { ProgressPayload } from '@/utils/transfer';
 import { throttle } from '@/utils/throttle';
+import { getFilename } from '@/utils/path';
 import { parseOpenWithFiles } from '@/helpers/openWith';
 import { isTauriAppPlatform, isWebAppPlatform } from '@/services/environment';
 import { checkForAppUpdates, checkAppReleaseNotes } from '@/helpers/updater';
-import { FILE_ACCEPT_FORMATS, SUPPORTED_FILE_EXTS } from '@/services/constants';
+import { BOOK_ACCEPT_FORMATS } from '@/services/constants';
 import { impactFeedback } from '@tauri-apps/plugin-haptics';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 
 import { useEnv } from '@/context/EnvContext';
 import { useAuth } from '@/context/AuthContext';
+import { useThemeStore } from '@/store/themeStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useLibraryStore } from '@/store/libraryStore';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -37,9 +33,9 @@ import { useTheme } from '@/hooks/useTheme';
 import { useUICSS } from '@/hooks/useUICSS';
 import { useDemoBooks } from './hooks/useDemoBooks';
 import { useBooksSync } from './hooks/useBooksSync';
-import { useSafeAreaInsets } from '@/hooks/useSafeAreaInsets';
 import { useScreenWakeLock } from '@/hooks/useScreenWakeLock';
 import { useOpenWithBooks } from '@/hooks/useOpenWithBooks';
+import { SelectedFile, useFileSelector } from '@/hooks/useFileSelector';
 import { lockScreenOrientation } from '@/utils/bridge';
 import {
   tauriHandleSetAlwaysOnTop,
@@ -77,7 +73,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     setCheckLastOpenBooks,
   } = useLibraryStore();
   const _ = useTranslation();
-  const insets = useSafeAreaInsets();
+  const { selectFiles } = useFileSelector(appService, _);
+  const { safeAreaInsets: insets, isRoundedWindow } = useThemeStore();
   const { settings, setSettings, saveSettings } = useSettingsStore();
   const [loading, setLoading] = useState(false);
   const isInitiating = useRef(false);
@@ -152,12 +149,12 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       } else {
         fileExt = file.name.split('.').pop()?.toLowerCase();
       }
-      return FILE_ACCEPT_FORMATS.includes(`.${fileExt}`);
+      return BOOK_ACCEPT_FORMATS.includes(`.${fileExt}`);
     });
     if (supportedFiles.length === 0) {
       eventDispatcher.dispatch('toast', {
         message: _('No supported files found. Supported formats: {{formats}}', {
-          formats: FILE_ACCEPT_FORMATS,
+          formats: BOOK_ACCEPT_FORMATS,
         }),
         type: 'error',
       });
@@ -168,7 +165,14 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       impactFeedback('medium');
     }
 
-    await importBooks(supportedFiles);
+    const selectedFiles = supportedFiles.map(
+      (file) =>
+        ({
+          file: typeof file === 'string' ? undefined : file,
+          path: typeof file === 'string' ? file : undefined,
+        }) as SelectedFile,
+    );
+    await importBooks(selectedFiles);
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement> | DragEvent) => {
@@ -396,7 +400,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [demoBooks, libraryLoaded]);
 
-  const importBooks = async (files: (string | File)[]) => {
+  const importBooks = async (files: SelectedFile[]) => {
     setLoading(true);
     const failedFiles = [];
     const errorMap: [string, string][] = [
@@ -405,7 +409,9 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       ['Unsupported format.', _('This book format is not supported.')],
     ];
     const { library } = useLibraryStore.getState();
-    for (const file of files) {
+    for (const selectedFile of files) {
+      const file = selectedFile.file || selectedFile.path;
+      if (!file) continue;
       try {
         const book = await appService?.importBook(file, library);
         setLibrary([...library]);
@@ -433,32 +439,6 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     }
     appService?.saveLibraryBooks(library);
     setLoading(false);
-  };
-
-  const selectFilesTauri = async () => {
-    const exts = appService?.isIOSApp ? [] : SUPPORTED_FILE_EXTS;
-    const files = (await appService?.selectFiles(_('Select Books'), exts)) || [];
-    if (appService?.isIOSApp) {
-      return files.filter((file) => {
-        const fileExt = file.split('.').pop()?.toLowerCase() || 'unknown';
-        return SUPPORTED_FILE_EXTS.includes(fileExt);
-      });
-    }
-    return files;
-  };
-
-  const selectFilesWeb = () => {
-    return new Promise((resolve) => {
-      const fileInput = document.createElement('input');
-      fileInput.type = 'file';
-      fileInput.accept = FILE_ACCEPT_FORMATS;
-      fileInput.multiple = true;
-      fileInput.click();
-
-      fileInput.onchange = () => {
-        resolve(fileInput.files);
-      };
-    });
   };
 
   const updateBookTransferProgress = throttle((bookHash: string, progress: ProgressPayload) => {
@@ -543,53 +523,36 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     [appService],
   );
 
-  const handleBookDelete = async (book: Book) => {
-    try {
-      await appService?.deleteBook(book, !!book.uploadedAt, true);
-      await updateBook(envConfig, book);
-      pushLibrary();
-      eventDispatcher.dispatch('toast', {
-        type: 'info',
-        timeout: 2000,
-        message: _('Book deleted: {{title}}', {
-          title: book.title,
-        }),
-      });
-      return true;
-    } catch {
-      eventDispatcher.dispatch('toast', {
-        message: _('Failed to delete book: {{title}}', {
-          title: book.title,
-        }),
-        type: 'error',
-      });
-      return false;
-    }
-  };
-
-  const handleBookDeleteCloudBackup = async (book: Book) => {
-    try {
-      await appService?.deleteBook(book, !!book.uploadedAt, false);
-      await updateBook(envConfig, book);
-      pushLibrary();
-      eventDispatcher.dispatch('toast', {
-        type: 'info',
-        timeout: 2000,
-        message: _('Deleted cloud backup of the book: {{title}}', {
-          title: book.title,
-        }),
-      });
-      return true;
-    } catch (e) {
-      console.error(e);
-      eventDispatcher.dispatch('toast', {
-        type: 'error',
-        message: _('Failed to delete cloud backup of the book', {
-          title: book.title,
-        }),
-      });
-      return false;
-    }
+  const handleBookDelete = (deleteAction: DeleteAction) => {
+    return async (book: Book) => {
+      const deletionMessages = {
+        both: _('Book deleted: {{title}}', { title: book.title }),
+        cloud: _('Deleted cloud backup of the book: {{title}}', { title: book.title }),
+        local: _('Deleted local copy of the book: {{title}}', { title: book.title }),
+      };
+      const deletionFailMessages = {
+        both: _('Failed to delete book: {{title}}', { title: book.title }),
+        cloud: _('Failed to delete cloud backup of the book: {{title}}', { title: book.title }),
+        local: _('Failed to delete local copy of the book: {{title}}', { title: book.title }),
+      };
+      try {
+        await appService?.deleteBook(book, deleteAction);
+        await updateBook(envConfig, book);
+        pushLibrary();
+        eventDispatcher.dispatch('toast', {
+          type: 'info',
+          timeout: 2000,
+          message: deletionMessages[deleteAction],
+        });
+        return true;
+      } catch {
+        eventDispatcher.dispatch('toast', {
+          message: deletionFailMessages[deleteAction],
+          type: 'error',
+        });
+        return false;
+      }
+    };
   };
 
   const handleUpdateMetadata = async (book: Book, metadata: BookMetadata) => {
@@ -626,14 +589,10 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const handleImportBooks = async () => {
     setIsSelectMode(false);
     console.log('Importing books...');
-    let files;
-
-    if (isTauriAppPlatform()) {
-      files = (await selectFilesTauri()) as string[];
-    } else {
-      files = (await selectFilesWeb()) as File[];
-    }
-    importBooks(files);
+    selectFiles({ type: 'books', multiple: true }).then((result) => {
+      if (result.files.length === 0 || result.error) return;
+      importBooks(result.files);
+    });
   };
 
   const handleSetSelectMode = (selectMode: boolean) => {
@@ -659,31 +618,29 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
     setShowDetailsBook(book);
   };
 
-  if (!appService || !insets) {
-    return null;
+  if (!appService || !insets || checkOpenWithBooks || checkLastOpenBooks) {
+    return <div className={clsx('h-[100vh]', !appService?.isLinuxApp && 'bg-base-200')} />;
   }
 
-  if (checkOpenWithBooks || checkLastOpenBooks) {
-    return (
-      loading && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center'>
-          <Spinner loading />
-        </div>
-      )
-    );
-  }
+  const showBookshelf = libraryLoaded || libraryBooks.length > 0;
 
   return (
     <div
       ref={pageRef}
+      role='main'
+      aria-label='Your Library'
       className={clsx(
         'library-page bg-base-200 text-base-content flex select-none flex-col overflow-hidden',
         appService?.isIOSApp ? 'h-[100vh]' : 'h-dvh',
-        appService?.isLinuxApp && 'window-border',
-        appService?.hasRoundedWindow && 'rounded-window',
+        appService?.hasRoundedWindow && isRoundedWindow && 'window-border rounded-window',
       )}
     >
-      <div className='top-0 z-40 w-full'>
+      <div
+        className='top-0 z-40 w-full'
+        role='banner'
+        tabIndex={-1}
+        aria-label={_('Library Header')}
+      >
         <LibraryHeader
           isSelectMode={isSelectMode}
           isSelectAll={isSelectAll}
@@ -698,11 +655,13 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
           <Spinner loading />
         </div>
       )}
-      {libraryLoaded &&
+      {showBookshelf &&
         (libraryBooks.some((book) => !book.deletedAt) ? (
           <OverlayScrollbarsComponent
             defer
+            aria-label=''
             ref={osRef}
+            className='flex-grow'
             options={{ scrollbars: { autoHide: 'scroll' } }}
             events={{
               initialized: (instance) => {
@@ -731,7 +690,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
                 handleImportBooks={handleImportBooks}
                 handleBookUpload={handleBookUpload}
                 handleBookDownload={handleBookDownload}
-                handleBookDelete={handleBookDelete}
+                handleBookDelete={handleBookDelete('both')}
                 handleSetSelectMode={handleSetSelectMode}
                 handleShowDetailsBook={handleShowDetailsBook}
                 booksTransferProgress={booksTransferProgress}
@@ -763,8 +722,9 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
           onClose={() => setShowDetailsBook(null)}
           handleBookUpload={handleBookUpload}
           handleBookDownload={handleBookDownload}
-          handleBookDelete={handleBookDelete}
-          handleBookDeleteCloudBackup={handleBookDeleteCloudBackup}
+          handleBookDelete={handleBookDelete('both')}
+          handleBookDeleteCloudBackup={handleBookDelete('cloud')}
+          handleBookDeleteLocalCopy={handleBookDelete('local')}
           handleBookMetadataUpdate={handleUpdateMetadata}
         />
       )}
@@ -777,13 +737,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
 
 const LibraryPage = () => {
   return (
-    <Suspense
-      fallback={
-        <div className='fixed inset-0 z-50 flex items-center justify-center'>
-          <Spinner loading />
-        </div>
-      }
-    >
+    <Suspense fallback={<div className='h-[100vh]' />}>
       <LibraryPageWithSearchParams />
     </Suspense>
   );

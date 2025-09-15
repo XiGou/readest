@@ -38,7 +38,7 @@ export const useTheme = ({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [appService?.isAndroidApp]);
 
   const handleSystemUIVisibility = useCallback(() => {
     if (!appService?.isMobileApp) return;
@@ -94,7 +94,7 @@ export const useTheme = ({
       applyCustomTheme(customTheme);
     });
     localStorage.setItem('customThemes', JSON.stringify(customThemes));
-  }, [settings]);
+  }, [settings.globalReadSettings?.customThemes]);
 
   useEffect(() => {
     const colorScheme = isDarkMode ? 'dark' : 'light';

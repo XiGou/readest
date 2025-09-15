@@ -8,8 +8,8 @@ export const isCJKStr = (str: string) => {
 
 export const isCJKLang = (lang: string | null | undefined): boolean => {
   if (!lang) return false;
-  const normalizedLang = lang.split('-')[0]!.toLowerCase();
-  return ['zh', 'ja', 'ko'].includes(normalizedLang);
+  const normalizedLang = normalizedLangCode(lang);
+  return ['zh', 'ja', 'ko', 'zho', 'jpn', 'kor'].includes(normalizedLang);
 };
 
 export const normalizeToFullLang = (langCode: string): string => {
@@ -42,6 +42,10 @@ export const normalizeToFullLang = (langCode: string): string => {
     lt: 'lt-LT',
     sl: 'sl-SI',
     sk: 'sk-SK',
+    bo: 'bo-CN',
+    bn: 'bn-BD',
+    ta: 'ta-IN',
+    si: 'si-LK',
     zh: 'zh-Hans',
     'zh-cn': 'zh-Hans',
     'zh-tw': 'zh-Hant',
@@ -84,7 +88,8 @@ export const isSameLang = (lang1?: string | null, lang2?: string | null): boolea
 
 export const isValidLang = (lang?: string) => {
   if (!lang) return false;
-  const code = lang.split('-')[0]!.toLowerCase();
+  if (typeof lang !== 'string') return false;
+  const code = normalizedLangCode(lang);
   return iso6392.some((l) => l.iso6391 === code || l.iso6392B === code);
 };
 

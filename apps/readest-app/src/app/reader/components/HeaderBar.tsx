@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { PiDotsThreeVerticalBold } from 'react-icons/pi';
 
 import { Insets } from '@/types/misc';
@@ -7,6 +7,7 @@ import { useEnv } from '@/context/EnvContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useReaderStore } from '@/store/readerStore';
 import { useSidebarStore } from '@/store/sidebarStore';
+import { useTranslation } from '@/hooks/useTranslation';
 import { useTrafficLightStore } from '@/store/trafficLightStore';
 import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import WindowButtons from '@/components/WindowButtons';
@@ -37,9 +38,11 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
   onCloseBook,
   onSetSettingsDialogOpen,
 }) => {
+  const _ = useTranslation();
   const { appService } = useEnv();
   const headerRef = useRef<HTMLDivElement>(null);
   const {
+    isTrafficLightVisible,
     trafficLightInFullscreen,
     setTrafficLightVisibility,
     initializeTrafficLightStore,
@@ -51,6 +54,8 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
   const { systemUIVisible, statusBarHeight } = useThemeStore();
   const { isSideBarVisible } = useSidebarStore();
   const iconSize16 = useResponsiveSize(16);
+
+  const windowButtonVisible = appService?.hasWindowBar && !isTrafficLightVisible;
 
   const handleToggleDropdown = (isOpen: boolean) => {
     setIsDropdownOpen(isOpen);
@@ -80,6 +85,16 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appService, isSideBarVisible, hoveredBookKey]);
 
+  // Check if mouse is outside header area to avoid false positive event of MouseLeave when clicking inside header on Windows
+  const isMouseOutsideHeader = useCallback((clientX: number, clientY: number) => {
+    if (!headerRef.current) return true;
+
+    const rect = headerRef.current.getBoundingClientRect();
+    return (
+      clientX <= rect.left || clientX >= rect.right || clientY <= rect.top || clientY >= rect.bottom
+    );
+  }, []);
+
   const isHeaderVisible = hoveredBookKey === bookKey || isDropdownOpen;
   const trafficLightInHeader =
     appService?.hasTrafficLight && !trafficLightInFullscreen && !isSideBarVisible && isTopLeft;
@@ -92,7 +107,11 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
       }}
     >
       <div
+        role='none'
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        tabIndex={0}
         className={clsx('absolute top-0 z-10 h-11 w-full')}
+        onFocus={() => !appService?.isMobile && setHoveredBookKey(bookKey)}
         onMouseEnter={() => !appService?.isMobile && setHoveredBookKey(bookKey)}
         onTouchStart={() => !appService?.isMobile && setHoveredBookKey(bookKey)}
       />
@@ -108,6 +127,8 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
       />
       <div
         ref={headerRef}
+        role='group'
+        aria-label={_('Header Bar')}
         className={clsx(
           `header-bar bg-base-100 absolute top-0 z-10 flex h-11 w-full items-center pr-4`,
           `shadow-xs transition-[opacity,margin-top] duration-300`,
@@ -123,7 +144,11 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
             ? `${Math.max(gridInsets.top, statusBarHeight)}px`
             : `${gridInsets.top}px`,
         }}
-        onMouseLeave={() => !appService?.isMobile && setHoveredBookKey('')}
+        onMouseLeave={(e) => {
+          if (!appService?.isMobile && isMouseOutsideHeader(e.clientX, e.clientY)) {
+            setHoveredBookKey('');
+          }
+        }}
       >
         <div className='bg-base-100 sidebar-bookmark-toggler z-20 flex h-full items-center gap-x-4 pe-2'>
           <div className='hidden sm:flex'>
@@ -133,16 +158,30 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
           <TranslationToggler bookKey={bookKey} />
         </div>
 
-        <div className='header-title z-15 bg-base-100 pointer-events-none absolute inset-0 hidden items-center justify-center sm:flex'>
-          <h2 className='line-clamp-1 max-w-[50%] text-center text-xs font-semibold'>
+        <div
+          role='contentinfo'
+          aria-label={_('Title') + ' - ' + bookTitle}
+          className={clsx(
+            'header-title z-15 bg-base-100 pointer-events-none hidden flex-1 items-center justify-center sm:flex',
+            !windowButtonVisible && 'absolute inset-0',
+          )}
+        >
+          <div
+            aria-hidden='true'
+            className={clsx(
+              'line-clamp-1 text-center text-xs font-semibold',
+              !windowButtonVisible && 'max-w-[50%]',
+            )}
+          >
             {bookTitle}
-          </h2>
+          </div>
         </div>
 
         <div className='bg-base-100 z-20 ml-auto flex h-full items-center space-x-4 ps-2'>
           <SettingsToggler />
           <NotebookToggler bookKey={bookKey} />
           <Dropdown
+            label={_('View Options')}
             className='exclude-title-bar-mousedown dropdown-bottom dropdown-end'
             buttonClassName='btn btn-ghost h-8 min-h-8 w-8 p-0'
             toggleButton={<PiDotsThreeVerticalBold size={iconSize16} />}
@@ -154,16 +193,8 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
           <WindowButtons
             className='window-buttons flex h-full items-center'
             headerRef={headerRef}
-            showMinimize={
-              bookKeys.length == 1 &&
-              !appService?.hasTrafficLight &&
-              appService?.appPlatform !== 'web'
-            }
-            showMaximize={
-              bookKeys.length == 1 &&
-              !appService?.hasTrafficLight &&
-              appService?.appPlatform !== 'web'
-            }
+            showMinimize={bookKeys.length == 1 && windowButtonVisible}
+            showMaximize={bookKeys.length == 1 && windowButtonVisible}
             onClose={() => {
               setHoveredBookKey(null);
               onCloseBook(bookKey);

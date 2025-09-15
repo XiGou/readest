@@ -40,7 +40,7 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
   const [isRtl] = useState(() => getDirFromUILanguage() === 'rtl');
   const tabsRef = useRef<HTMLDivElement | null>(null);
   const [showAllTabLabels, setShowAllTabLabels] = useState(false);
-  const { setFontLayoutSettingsDialogOpen } = useSettingsStore();
+  const { setFontPanelView, setFontLayoutSettingsDialogOpen } = useSettingsStore();
 
   const tabConfig = [
     {
@@ -85,6 +85,7 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
 
   const handleSetActivePanel = (tab: SettingsPanelType) => {
     setActivePanel(tab);
+    setFontPanelView('main-fonts');
     localStorage.setItem('lastConfigPanel', tab);
   };
 
@@ -115,6 +116,8 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
   };
 
   useEffect(() => {
+    setFontPanelView('main-fonts');
+
     const container = tabsRef.current;
     if (!container) return;
 
@@ -154,7 +157,7 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
       resizeObserver.disconnect();
       mutationObserver.disconnect();
     };
-  }, []);
+  }, [setFontPanelView]);
 
   const currentPanel = tabConfig.find((tab) => tab.tab === activePanel);
 
@@ -163,6 +166,7 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
       isOpen={true}
       onClose={handleClose}
       className='modal-open'
+      bgClassName='sm:!bg-black/20'
       boxClassName={clsx('sm:min-w-[520px]', appService?.isMobile && 'sm:max-w-[90%] sm:w-3/4')}
       snapHeight={appService?.isMobile ? 0.7 : undefined}
       header={
@@ -208,6 +212,7 @@ const SettingsDialog: React.FC<{ bookKey: string; config: BookConfig }> = ({ boo
             </div>
             <div className='flex h-full items-center justify-end gap-x-2'>
               <Dropdown
+                label={_('Settings Menu')}
                 className='dropdown-bottom dropdown-end'
                 buttonClassName='btn btn-ghost h-8 min-h-8 w-8 p-0 flex items-center justify-center'
                 toggleButton={<PiDotsThreeVerticalBold />}

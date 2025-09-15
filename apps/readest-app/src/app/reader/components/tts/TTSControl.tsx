@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useEnv } from '@/context/EnvContext';
+import { useThemeStore } from '@/store/themeStore';
 import { useBookDataStore } from '@/store/bookDataStore';
 import { useReaderStore } from '@/store/readerStore';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -12,9 +13,12 @@ import { parseSSMLLang } from '@/utils/ssml';
 import { throttle } from '@/utils/throttle';
 import { invokeUseBackgroundAudio } from '@/utils/bridge';
 import { CFI } from '@/libs/document';
+import { Insets } from '@/types/misc';
+import { Overlay } from '@/components/Overlay';
 import Popup from '@/components/Popup';
 import TTSPanel from './TTSPanel';
 import TTSIcon from './TTSIcon';
+import TTSBar from './TTSBar';
 
 const POPUP_WIDTH = 282;
 const POPUP_HEIGHT = 160;
@@ -22,19 +26,23 @@ const POPUP_PADDING = 10;
 
 interface TTSControlProps {
   bookKey: string;
+  gridInsets: Insets;
 }
 
-const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
+const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
   const _ = useTranslation();
   const { appService } = useEnv();
+  const { safeAreaInsets } = useThemeStore();
   const { getBookData } = useBookDataStore();
-  const { getView, getProgress, getViewSettings } = useReaderStore();
+  const { hoveredBookKey, getView, getProgress, getViewSettings } = useReaderStore();
   const { setViewSettings, setTTSEnabled } = useReaderStore();
+  const viewSettings = getViewSettings(bookKey);
   const [ttsLang, setTtsLang] = useState<string>('en');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [showIndicator, setShowIndicator] = useState(false);
   const [showPanel, setShowPanel] = useState(false);
+  const [showTTSBar, setShowTTSBar] = useState(() => !!viewSettings?.showTTSBar);
   const [panelPosition, setPanelPosition] = useState<Position>();
   const [trianglePosition, setTrianglePosition] = useState<Position>();
 
@@ -42,7 +50,6 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
   const [timeoutTimestamp, setTimeoutTimestamp] = useState(0);
   const [timeoutFunc, setTimeoutFunc] = useState<ReturnType<typeof setTimeout> | null>(null);
 
-  const viewSettings = getViewSettings(bookKey);
   const popupPadding = useResponsiveSize(POPUP_PADDING);
   const maxWidth = window.innerWidth - 2 * popupPadding;
   const popupWidth = Math.min(maxWidth, useResponsiveSize(POPUP_WIDTH));
@@ -62,11 +69,6 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
     unblockerAudioRef.current.addEventListener('play', () => {
       if ('mediaSession' in navigator) {
         navigator.mediaSession.metadata = null;
-        navigator.mediaSession.setActionHandler('play', null);
-        navigator.mediaSession.setActionHandler('pause', null);
-        navigator.mediaSession.setActionHandler('stop', null);
-        navigator.mediaSession.setActionHandler('seekbackward', null);
-        navigator.mediaSession.setActionHandler('seekforward', null);
       }
     });
     unblockerAudioRef.current.preload = 'auto';
@@ -121,7 +123,7 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
       const mark = (e as CustomEvent<TTSMark>).detail;
       if (appService?.isMobileApp && 'mediaSession' in navigator) {
         navigator.mediaSession.metadata = new MediaMetadata({
-          title: mark.text,
+          title: mark?.text || '',
           artist: sectionLabel || title,
           album: author,
           artwork: [{ src: coverImageUrl || '/icon.png', sizes: '512x512', type: 'image/png' }],
@@ -238,7 +240,7 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
     }
   };
 
-  const handleTogglePlay = async () => {
+  const handleTogglePlay = useCallback(async () => {
     const ttsController = ttsControllerRef.current;
     if (!ttsController) return;
 
@@ -257,41 +259,54 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
         await ttsController.start();
       }
     }
-  };
+  }, [isPlaying, isPaused]);
 
-  const handleBackward = async () => {
+  const handleBackward = useCallback(async (byMark = false) => {
     const ttsController = ttsControllerRef.current;
     if (ttsController) {
-      await ttsController.backward();
+      await ttsController.backward(byMark);
     }
-  };
+  }, []);
 
-  const handleForward = async () => {
+  const handleForward = useCallback(async (byMark = false) => {
     const ttsController = ttsControllerRef.current;
     if (ttsController) {
-      await ttsController.forward();
+      await ttsController.forward(byMark);
     }
-  };
+  }, []);
 
-  const handleStop = async (bookKey: string) => {
+  const handlePause = useCallback(async () => {
     const ttsController = ttsControllerRef.current;
     if (ttsController) {
-      await ttsController.shutdown();
-      ttsControllerRef.current = null;
-      setTtsController(null);
-      getView(bookKey)?.deselect();
       setIsPlaying(false);
-      setShowPanel(false);
-      setShowIndicator(false);
+      setIsPaused(true);
+      await ttsController.pause();
     }
-    if (appService?.isIOSApp) {
-      await invokeUseBackgroundAudio({ enabled: false });
-    }
-    if (appService?.isMobile) {
-      releaseUnblockAudio();
-    }
-    setTTSEnabled(bookKey, false);
-  };
+  }, []);
+
+  const handleStop = useCallback(
+    async (bookKey: string) => {
+      const ttsController = ttsControllerRef.current;
+      if (ttsController) {
+        await ttsController.shutdown();
+        ttsControllerRef.current = null;
+        setTtsController(null);
+        getView(bookKey)?.deselect();
+        setIsPlaying(false);
+        setShowPanel(false);
+        setShowIndicator(false);
+      }
+      if (appService?.isIOSApp) {
+        await invokeUseBackgroundAudio({ enabled: false });
+      }
+      if (appService?.isMobile) {
+        releaseUnblockAudio();
+      }
+      setTTSEnabled(bookKey, false);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [appService],
+  );
 
   // rate range: 0.5 - 3, 1.0 is normal speed
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -361,6 +376,16 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
     }
   };
 
+  const handleToggleTTSBar = () => {
+    const viewSettings = getViewSettings(bookKey)!;
+    viewSettings.showTTSBar = !viewSettings.showTTSBar;
+    setShowTTSBar(viewSettings.showTTSBar);
+    if (viewSettings.showTTSBar) {
+      setShowPanel(false);
+    }
+    setViewSettings(bookKey, viewSettings);
+  };
+
   const updatePanelPosition = () => {
     if (iconRef.current) {
       const rect = iconRef.current.getBoundingClientRect();
@@ -400,6 +425,30 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
   };
 
   useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('play', () => {
+        handleTogglePlay();
+      });
+
+      navigator.mediaSession.setActionHandler('pause', () => {
+        handleTogglePlay();
+      });
+
+      navigator.mediaSession.setActionHandler('stop', () => {
+        handlePause();
+      });
+
+      navigator.mediaSession.setActionHandler('seekforward', () => {
+        handleForward();
+      });
+
+      navigator.mediaSession.setActionHandler('seekbackward', () => {
+        handleBackward();
+      });
+    }
+  }, [handleTogglePlay, handlePause, handleForward, handleBackward]);
+
+  useEffect(() => {
     if (!iconRef.current || !showPanel) return;
     const parentElement = iconRef.current.parentElement;
     if (!parentElement) return;
@@ -416,23 +465,21 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
 
   return (
     <>
-      {showPanel && (
-        <div
-          className='fixed inset-0'
-          onClick={handleDismissPopup}
-          onContextMenu={handleDismissPopup}
-        />
-      )}
+      {showPanel && <Overlay onDismiss={handleDismissPopup} />}
       {showIndicator && (
         <div
           ref={iconRef}
           className={clsx(
             'absolute h-12 w-12',
-            viewSettings?.rtl ? 'left-6' : 'right-6',
-            appService?.hasSafeAreaInset
-              ? 'bottom-[calc(env(safe-area-inset-bottom)+70px)]'
-              : 'bottom-[70px] sm:bottom-14',
+            'transition-transform duration-300',
+            viewSettings?.rtl ? 'left-8' : 'right-6',
+            !appService?.hasSafeAreaInset && 'bottom-[70px] sm:bottom-14',
           )}
+          style={{
+            bottom: appService?.hasSafeAreaInset
+              ? `${(safeAreaInsets?.bottom || 0) * 0.33 + (hoveredBookKey ? 70 : 52)}px`
+              : undefined,
+          }}
         >
           <TTSIcon isPlaying={isPlaying} ttsInited={ttsClientsInited} onClick={togglePopup} />
         </div>
@@ -459,8 +506,19 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey }) => {
             onSetVoice={handleSetVoice}
             onGetVoiceId={handleGetVoiceId}
             onSelectTimeout={handleSelectTimeout}
+            onToogleTTSBar={handleToggleTTSBar}
           />
         </Popup>
+      )}
+      {showIndicator && showTTSBar && ttsClientsInited && (
+        <TTSBar
+          bookKey={bookKey}
+          isPlaying={isPlaying}
+          onBackward={handleBackward}
+          onTogglePlay={handleTogglePlay}
+          onForward={handleForward}
+          gridInsets={gridInsets}
+        />
       )}
     </>
   );

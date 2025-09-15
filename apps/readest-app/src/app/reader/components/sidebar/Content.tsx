@@ -2,7 +2,9 @@ import clsx from 'clsx';
 import React, { useEffect, useState } from 'react';
 
 import { BookDoc } from '@/libs/document';
-import { useEnv } from '@/context/EnvContext';
+import { useThemeStore } from '@/store/themeStore';
+import { useReaderStore } from '@/store/readerStore';
+import { useSidebarStore } from '@/store/sidebarStore';
 import { useBookDataStore } from '@/store/bookDataStore';
 import { OverlayScrollbarsComponent } from 'overlayscrollbars-react';
 import 'overlayscrollbars/overlayscrollbars.css';
@@ -15,12 +17,15 @@ const SidebarContent: React.FC<{
   bookDoc: BookDoc;
   sideBarBookKey: string;
 }> = ({ bookDoc, sideBarBookKey }) => {
-  const { appService } = useEnv();
+  const { safeAreaInsets } = useThemeStore();
+  const { setHoveredBookKey } = useReaderStore();
+  const { setSideBarVisible } = useSidebarStore();
   const { getConfig, setConfig } = useBookDataStore();
   const config = getConfig(sideBarBookKey);
   const [activeTab, setActiveTab] = useState(config?.viewSettings?.sideBarTab || 'toc');
   const [fade, setFade] = useState(false);
   const [targetTab, setTargetTab] = useState(activeTab);
+  const isMobile = window.innerWidth < 640 || window.innerHeight < 640;
 
   useEffect(() => {
     if (!sideBarBookKey) return;
@@ -32,8 +37,13 @@ const SidebarContent: React.FC<{
   const handleTabChange = (tab: string) => {
     setFade(true);
     const timeout = setTimeout(() => {
-      setFade(false);
+      if (activeTab === tab && isMobile) {
+        setHoveredBookKey(sideBarBookKey);
+        setSideBarVisible(false);
+        return;
+      }
       setTargetTab(tab);
+      setFade(false);
       setConfig(sideBarBookKey!, config);
       clearTimeout(timeout);
     }, 300);
@@ -75,10 +85,10 @@ const SidebarContent: React.FC<{
         </OverlayScrollbarsComponent>
       </div>
       <div
-        className={clsx(
-          'flex-shrink-0',
-          appService?.hasSafeAreaInset && 'pb-[calc(env(safe-area-inset-bottom)/2)]',
-        )}
+        className='flex-shrink-0'
+        style={{
+          paddingBottom: `${(safeAreaInsets?.bottom || 0) / 2}px`,
+        }}
       >
         <TabNavigation activeTab={activeTab} onTabChange={handleTabChange} />
       </div>

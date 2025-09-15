@@ -3,6 +3,7 @@ import { useEnv } from '@/context/EnvContext';
 import { FoliateView } from '@/types/view';
 import { ViewSettings } from '@/types/book';
 import { useReaderStore } from '@/store/readerStore';
+import { useBookDataStore } from '@/store/bookDataStore';
 import { useDeviceControlStore } from '@/store/deviceStore';
 import { eventDispatcher } from '@/utils/event';
 import { isTauriAppPlatform } from '@/services/environment';
@@ -10,25 +11,33 @@ import { tauriGetWindowLogicalPosition } from '@/utils/window';
 
 export type ScrollSource = 'touch' | 'mouse';
 
+type PaginationSide = 'left' | 'right' | 'up' | 'down';
+
+const swapLeftRight = (side: PaginationSide) => {
+  if (side === 'left') return 'right';
+  if (side === 'right') return 'left';
+  return side;
+};
+
 export const viewPagination = (
   view: FoliateView | null,
   viewSettings: ViewSettings | null | undefined,
-  side: 'left' | 'right',
+  side: PaginationSide,
 ) => {
   if (!view || !viewSettings) return;
   const renderer = view.renderer;
+  if (view.book.dir === 'rtl') {
+    side = swapLeftRight(side);
+  }
   if (renderer.scrolled) {
-    if (view.book.dir === 'rtl') {
-      side = side === 'left' ? 'right' : 'left';
-    }
     const { size } = renderer;
     const showHeader = viewSettings.showHeader && viewSettings.showBarsOnScroll;
     const showFooter = viewSettings.showFooter && viewSettings.showBarsOnScroll;
     const scrollingOverlap = viewSettings.scrollingOverlap;
     const distance = size - scrollingOverlap - (showHeader ? 44 : 0) - (showFooter ? 44 : 0);
-    return side === 'left' ? view.prev(distance) : view.next(distance);
+    return side === 'left' || side === 'up' ? view.prev(distance) : view.next(distance);
   } else {
-    return side === 'left' ? view.goLeft() : view.goRight();
+    return side === 'left' || side === 'up' ? view.prev() : view.next();
   }
 };
 
@@ -38,13 +47,18 @@ export const usePagination = (
   containerRef: React.RefObject<HTMLDivElement>,
 ) => {
   const { appService } = useEnv();
-  const { getViewSettings } = useReaderStore();
+  const { getBookData } = useBookDataStore();
+  const { getViewSettings, getViewState } = useReaderStore();
   const { hoveredBookKey, setHoveredBookKey } = useReaderStore();
   const { acquireVolumeKeyInterception, releaseVolumeKeyInterception } = useDeviceControlStore();
 
   const handlePageFlip = async (
     msg: MessageEvent | CustomEvent | React.MouseEvent<HTMLDivElement, MouseEvent>,
   ) => {
+    const viewState = getViewState(bookKey);
+    const bookData = getBookData(bookKey);
+    if (!viewState?.inited || !bookData) return;
+
     if (msg instanceof MessageEvent) {
       if (msg.data && msg.data.bookKey === bookKey) {
         const viewSettings = getViewSettings(bookKey)!;
@@ -118,14 +132,27 @@ export const usePagination = (
         }
       }
     } else if (msg instanceof CustomEvent) {
-      const { keyName } = msg.detail;
       const viewSettings = getViewSettings(bookKey);
-      if (viewSettings?.volumeKeysToFlip) {
+      if (msg.type === 'native-key-down' && viewSettings?.volumeKeysToFlip) {
+        const { keyName } = msg.detail;
         setHoveredBookKey('');
         if (keyName === 'VolumeUp') {
-          viewPagination(viewRef.current, viewSettings, 'left');
+          viewPagination(viewRef.current, viewSettings, 'up');
         } else if (keyName === 'VolumeDown') {
-          viewPagination(viewRef.current, viewSettings, 'right');
+          viewPagination(viewRef.current, viewSettings, 'down');
+        }
+      } else if (
+        msg.type === 'touch-swipe' &&
+        bookData.bookDoc?.rendition?.layout === 'pre-paginated' &&
+        viewSettings?.zoomLevel === 100
+      ) {
+        const { deltaX, deltaY } = msg.detail;
+        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 30) {
+          if (deltaX > 0) {
+            viewPagination(viewRef.current, viewSettings, 'left');
+          } else {
+            viewPagination(viewRef.current, viewSettings, 'right');
+          }
         }
       }
     } else {
@@ -147,6 +174,10 @@ export const usePagination = (
   const handleContinuousScroll = (mode: ScrollSource, scrollDelta: number, threshold: number) => {
     const renderer = viewRef.current?.renderer;
     const viewSettings = getViewSettings(bookKey)!;
+    const bookData = getBookData(bookKey)!;
+    // Currently continuous scroll is not supported in pre-paginated layout
+    if (bookData.bookDoc?.rendition?.layout === 'pre-paginated') return;
+
     if (renderer && viewSettings.scrolled && viewSettings.continuousScroll) {
       const doScroll = () => {
         // may have overscroll where the start is greater than 0

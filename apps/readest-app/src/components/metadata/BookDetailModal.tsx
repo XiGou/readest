@@ -4,9 +4,11 @@ import React, { useEffect, useState } from 'react';
 import { Book } from '@/types/book';
 import { BookMetadata } from '@/libs/document';
 import { useEnv } from '@/context/EnvContext';
+import { useThemeStore } from '@/store/themeStore';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useMetadataEdit } from './useMetadataEdit';
+import { DeleteAction } from '@/types/system';
 import Alert from '@/components/Alert';
 import Dialog from '@/components/Dialog';
 import Spinner from '@/components/Spinner';
@@ -22,7 +24,14 @@ interface BookDetailModalProps {
   handleBookUpload?: (book: Book) => void;
   handleBookDelete?: (book: Book) => void;
   handleBookDeleteCloudBackup?: (book: Book) => void;
+  handleBookDeleteLocalCopy?: (book: Book) => void;
   handleBookMetadataUpdate?: (book: Book, updatedMetadata: BookMetadata) => void;
+}
+
+interface DeleteConfig {
+  title: string;
+  message: string;
+  handler?: (book: Book) => void;
 }
 
 const BookDetailModal: React.FC<BookDetailModalProps> = ({
@@ -33,12 +42,13 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
   handleBookUpload,
   handleBookDelete,
   handleBookDeleteCloudBackup,
+  handleBookDeleteLocalCopy,
   handleBookMetadataUpdate,
 }) => {
   const _ = useTranslation();
+  const { safeAreaInsets } = useThemeStore();
   const [loading, setLoading] = useState(false);
-  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
-  const [showDeleteCloudBackupAlert, setShowDeleteCloudBackupAlert] = useState(false);
+  const [activeDeleteAction, setActiveDeleteAction] = useState<DeleteAction | null>(null);
   const [editMode, setEditMode] = useState(false);
   const [bookMeta, setBookMeta] = useState<BookMetadata | null>(null);
   const [fileSize, setFileSize] = useState<number | null>(null);
@@ -64,6 +74,24 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
     resetToOriginal,
   } = useMetadataEdit(bookMeta);
 
+  const deleteConfigs: Record<DeleteAction, DeleteConfig> = {
+    both: {
+      title: _('Confirm Deletion'),
+      message: _('Are you sure to delete the selected book?'),
+      handler: handleBookDelete,
+    },
+    cloud: {
+      title: _('Confirm Deletion'),
+      message: _('Are you sure to delete the cloud backup of the selected book?'),
+      handler: handleBookDeleteCloudBackup,
+    },
+    local: {
+      title: _('Confirm Deletion'),
+      message: _('Are you sure to delete the local copy of the selected book?'),
+      handler: handleBookDeleteLocalCopy,
+    },
+  };
+
   useEffect(() => {
     const loadingTimeout = setTimeout(() => setLoading(true), 300);
     const fetchBookDetails = async () => {
@@ -85,6 +113,7 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
   const handleClose = () => {
     setBookMeta(null);
     setEditMode(false);
+    setActiveDeleteAction(null);
     onClose();
   };
 
@@ -105,29 +134,28 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
     }
   };
 
-  const handleDelete = () => {
-    setShowDeleteAlert(true);
+  const handleDeleteAction = (action: DeleteAction) => {
+    setActiveDeleteAction(action);
   };
 
-  const handleDeleteCloudBackup = () => {
-    setShowDeleteCloudBackupAlert(true);
-  };
+  const confirmDeleteAction = async () => {
+    if (!activeDeleteAction) return;
 
-  const confirmDelete = async () => {
+    const config = deleteConfigs[activeDeleteAction];
     handleClose();
-    setShowDeleteAlert(false);
-    if (handleBookDelete) {
-      handleBookDelete(book);
+
+    if (config.handler) {
+      config.handler(book);
     }
   };
 
-  const confirmDeleteCloudBackup = async () => {
-    handleClose();
-    setShowDeleteCloudBackupAlert(false);
-    if (handleBookDeleteCloudBackup) {
-      handleBookDeleteCloudBackup(book);
-    }
+  const cancelDeleteAction = () => {
+    setActiveDeleteAction(null);
   };
+
+  const handleDelete = () => handleDeleteAction('both');
+  const handleDeleteCloudBackup = () => handleDeleteAction('cloud');
+  const handleDeleteLocalCopy = () => handleDeleteAction('local');
 
   const handleRedownload = async () => {
     handleClose();
@@ -142,6 +170,8 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
       handleBookUpload(book);
     }
   };
+
+  const currentDeleteConfig = activeDeleteAction ? deleteConfigs[activeDeleteAction] : null;
 
   if (!bookMeta)
     return (
@@ -159,7 +189,6 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
           title={editMode ? _('Edit Metadata') : _('Book Details')}
           isOpen={isOpen}
           onClose={handleClose}
-          bgClassName='sm:bg-black/50'
           boxClassName={clsx(
             editMode ? 'sm:min-w-[600px] sm:max-w-[600px]' : 'sm:min-w-[480px] sm:max-w-[480px]',
             'sm:h-auto sm:max-h-[90%]',
@@ -194,6 +223,7 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
                 onDeleteCloudBackup={
                   handleBookDeleteCloudBackup ? handleDeleteCloudBackup : undefined
                 }
+                onDeleteLocalCopy={handleBookDeleteLocalCopy ? handleDeleteLocalCopy : undefined}
                 onDownload={handleBookDownload ? handleRedownload : undefined}
                 onUpload={handleBookUpload ? handleReupload : undefined}
               />
@@ -202,41 +232,27 @@ const BookDetailModal: React.FC<BookDetailModalProps> = ({
         </Dialog>
 
         {/* Source Selection Modal */}
-        <SourceSelector
-          sources={availableSources}
-          isOpen={showSourceSelection}
-          onSelect={handleSourceSelection}
-          onClose={handleCloseSourceSelection}
-        />
-
-        {/* Delete Alerts */}
-        {showDeleteAlert && (
-          <div
-            className={clsx(
-              'fixed bottom-0 left-0 right-0 z-50 flex justify-center',
-              'pb-[calc(env(safe-area-inset-bottom)+16px)]',
-            )}
-          >
-            <Alert
-              title={_('Confirm Deletion')}
-              message={_('Are you sure to delete the selected book?')}
-              onCancel={() => setShowDeleteAlert(false)}
-              onConfirm={confirmDelete}
-            />
-          </div>
+        {showSourceSelection && (
+          <SourceSelector
+            sources={availableSources}
+            isOpen={showSourceSelection}
+            onSelect={handleSourceSelection}
+            onClose={handleCloseSourceSelection}
+          />
         )}
-        {showDeleteCloudBackupAlert && (
+
+        {activeDeleteAction && currentDeleteConfig && (
           <div
-            className={clsx(
-              'fixed bottom-0 left-0 right-0 z-50 flex justify-center',
-              'pb-[calc(env(safe-area-inset-bottom)+16px)]',
-            )}
+            className={clsx('fixed bottom-0 left-0 right-0 z-50 flex justify-center')}
+            style={{
+              paddingBottom: `${(safeAreaInsets?.bottom || 0) + 16}px`,
+            }}
           >
             <Alert
-              title={_('Confirm Deletion')}
-              message={_('Are you sure to delete the cloud backup of the selected book?')}
-              onCancel={() => setShowDeleteCloudBackupAlert(false)}
-              onConfirm={confirmDeleteCloudBackup}
+              title={currentDeleteConfig.title}
+              message={currentDeleteConfig.message}
+              onCancel={cancelDeleteAction}
+              onConfirm={confirmDeleteAction}
             />
           </div>
         )}
