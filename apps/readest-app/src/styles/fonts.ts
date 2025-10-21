@@ -12,6 +12,7 @@ const basicGoogleFonts = [
   { family: 'Noto Sans', weights: 'ital,wght@0,100..900;1,100..900' },
   { family: 'Open Sans', weights: 'ital,wght@0,300..800;1,300..800' },
   { family: 'Roboto', weights: 'ital,wght@0,100..900;1,100..900' },
+  { family: 'Roboto Slab', weights: 'ital,wght@0,100..900;1,100..900' },
   { family: 'Vollkorn', weights: 'ital,wght@0,400..900;1,400..900' },
 ];
 
@@ -33,7 +34,7 @@ const getAdditionalBasicFontLinks = () => `
 
 const getAdditionalCJKFontLinks = () => `
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/misans-webfont@1.0.4/misans-l3/misans-l3/result.min.css" crossorigin="anonymous" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cn-fontsource-lxgw-wen-kai-gb-screen@1.0.6/font.min.css" crossorigin="anonymous" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/lxgw-wenkai-screen-web/1.520.0/lxgwwenkaigbscreen/result.css" crossorigin="anonymous" />
   <link rel='stylesheet' href='https://chinese-fonts-cdn.netlify.app/packages/hwmct/dist/%E6%B1%87%E6%96%87%E6%98%8E%E6%9C%9D%E4%BD%93/result.css' crossorigin="anonymous" />
   <link rel='stylesheet' href='https://chinese-fonts-cdn.netlify.app/packages/jhlst/dist/%E4%BA%AC%E8%8F%AF%E8%80%81%E5%AE%8B%E4%BD%93v2_002/result.css' crossorigin="anonymous" />
   <link rel='stylesheet' href='https://chinese-fonts-cdn.netlify.app/packages/syst/dist/SourceHanSerifCN/result.css' crossorigin="anonymous" />
@@ -133,6 +134,9 @@ export interface CustomFont {
   loaded?: boolean;
   error?: string;
 }
+
+export type CustomFontInfo = Partial<CustomFont> &
+  Required<Pick<CustomFont, 'path' | 'name' | 'family' | 'style' | 'weight' | 'variable'>>;
 
 export function getFontName(path: string): string {
   const fileName = getFilename(path);

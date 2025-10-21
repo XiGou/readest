@@ -38,21 +38,24 @@ import { useOpenWithBooks } from '@/hooks/useOpenWithBooks';
 import { SelectedFile, useFileSelector } from '@/hooks/useFileSelector';
 import { lockScreenOrientation } from '@/utils/bridge';
 import {
+  tauriHandleClose,
   tauriHandleSetAlwaysOnTop,
   tauriHandleToggleFullScreen,
   tauriQuitApp,
 } from '@/utils/window';
 
-import { AboutWindow } from '@/components/AboutWindow';
-import { UpdaterWindow } from '@/components/UpdaterWindow';
 import { BookMetadata } from '@/libs/document';
+import { AboutWindow } from '@/components/AboutWindow';
 import { BookDetailModal } from '@/components/metadata';
+import { UpdaterWindow } from '@/components/UpdaterWindow';
+import { MigrateDataWindow } from './components/MigrateDataWindow';
 import { Toast } from '@/components/Toast';
 import Spinner from '@/components/Spinner';
 import LibraryHeader from './components/LibraryHeader';
 import Bookshelf from './components/Bookshelf';
 import useShortcuts from '@/hooks/useShortcuts';
 import DropIndicator from '@/components/DropIndicator';
+import SettingsDialog from '@/components/settings/SettingsDialog';
 
 const LibraryPageWithSearchParams = () => {
   const searchParams = useSearchParams();
@@ -76,6 +79,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   const { selectFiles } = useFileSelector(appService, _);
   const { safeAreaInsets: insets, isRoundedWindow } = useThemeStore();
   const { settings, setSettings, saveSettings } = useSettingsStore();
+  const { isFontLayoutSettingsDialogOpen } = useSettingsStore();
+  const { setFontLayoutSettingsDialogOpen } = useSettingsStore();
   const [loading, setLoading] = useState(false);
   const isInitiating = useRef(false);
   const [libraryLoaded, setLibraryLoaded] = useState(false);
@@ -88,6 +93,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   }>({});
   const [pendingNavigationBookIds, setPendingNavigationBookIds] = useState<string[] | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+
   const demoBooks = useDemoBooks();
   const osRef = useRef<OverlayScrollbarsComponentRef>(null);
   const containerRef: React.MutableRefObject<HTMLDivElement | null> = useRef(null);
@@ -112,10 +118,21 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         await tauriHandleToggleFullScreen();
       }
     },
+    onCloseWindow: async () => {
+      if (isTauriAppPlatform()) {
+        await tauriHandleClose();
+      }
+    },
     onQuitApp: async () => {
       if (isTauriAppPlatform()) {
         await tauriQuitApp();
       }
+    },
+    onOpenFontLayoutSettings: () => {
+      setFontLayoutSettingsDialogOpen(true);
+    },
+    onOpenBooks: () => {
+      handleImportBooks();
     },
   });
 
@@ -402,41 +419,56 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
 
   const importBooks = async (files: SelectedFile[]) => {
     setLoading(true);
-    const failedFiles = [];
+    const { library } = useLibraryStore.getState();
+    const failedImports: Array<{ filename: string; errorMessage: string }> = [];
     const errorMap: [string, string][] = [
       ['No chapters detected.', _('No chapters detected.')],
       ['Failed to parse EPUB.', _('Failed to parse the EPUB file.')],
       ['Unsupported format.', _('This book format is not supported.')],
     ];
-    const { library } = useLibraryStore.getState();
-    for (const selectedFile of files) {
+
+    const processFile = async (selectedFile: SelectedFile) => {
       const file = selectedFile.file || selectedFile.path;
-      if (!file) continue;
+      if (!file) return;
       try {
         const book = await appService?.importBook(file, library);
-        setLibrary([...library]);
         if (user && book && !book.uploadedAt && settings.autoUpload) {
           console.log('Uploading book:', book.title);
-          handleBookUpload(book);
+          handleBookUpload(book, false);
         }
       } catch (error) {
         const filename = typeof file === 'string' ? file : file.name;
         const baseFilename = getFilename(filename);
-        failedFiles.push(baseFilename);
         const errorMessage =
           error instanceof Error
             ? errorMap.find(([substring]) => error.message.includes(substring))?.[1] || ''
             : '';
-        eventDispatcher.dispatch('toast', {
-          message:
-            _('Failed to import book(s): {{filenames}}', {
-              filenames: listFormater(false).format(failedFiles),
-            }) + (errorMessage ? `\n${errorMessage}` : ''),
-          type: 'error',
-        });
+        failedImports.push({ filename: baseFilename, errorMessage });
         console.error('Failed to import book:', filename, error);
       }
+    };
+
+    const concurrency = 4;
+    for (let i = 0; i < files.length; i += concurrency) {
+      const batch = files.slice(i, i + concurrency);
+      await Promise.all(batch.map(processFile));
     }
+    pushLibrary();
+
+    if (failedImports.length > 0) {
+      const filenames = failedImports.map((f) => f.filename);
+      const errorMessage = failedImports.find((f) => f.errorMessage)?.errorMessage || '';
+
+      eventDispatcher.dispatch('toast', {
+        message:
+          _('Failed to import book(s): {{filenames}}', {
+            filenames: listFormater(false).format(filenames),
+          }) + (errorMessage ? `\n${errorMessage}` : ''),
+        type: 'error',
+      });
+    }
+
+    setLibrary([...library]);
     appService?.saveLibraryBooks(library);
     setLoading(false);
   };
@@ -451,13 +483,18 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   }, 500);
 
   const handleBookUpload = useCallback(
-    async (book: Book) => {
+    async (book: Book, syncBooks = true) => {
       try {
         await appService?.uploadBook(book, (progress) => {
           updateBookTransferProgress(book.hash, progress);
         });
+        setBooksTransferProgress((prev) => {
+          const updated = { ...prev };
+          delete updated[book.hash];
+          return updated;
+        });
         await updateBook(envConfig, book);
-        pushLibrary();
+        if (syncBooks) pushLibrary();
         eventDispatcher.dispatch('toast', {
           type: 'info',
           timeout: 2000,
@@ -467,6 +504,11 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
         });
         return true;
       } catch (err) {
+        setBooksTransferProgress((prev) => {
+          const updated = { ...prev };
+          delete updated[book.hash];
+          return updated;
+        });
         if (err instanceof Error) {
           if (err.message.includes('Not authenticated') && settings.keepLogin) {
             settings.keepLogin = false;
@@ -524,7 +566,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   );
 
   const handleBookDelete = (deleteAction: DeleteAction) => {
-    return async (book: Book) => {
+    return async (book: Book, syncBooks = true) => {
       const deletionMessages = {
         both: _('Book deleted: {{title}}', { title: book.title }),
         cloud: _('Deleted cloud backup of the book: {{title}}', { title: book.title }),
@@ -538,7 +580,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       try {
         await appService?.deleteBook(book, deleteAction);
         await updateBook(envConfig, book);
-        pushLibrary();
+        if (syncBooks) pushLibrary();
         eventDispatcher.dispatch('toast', {
           type: 'info',
           timeout: 2000,
@@ -627,11 +669,9 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
   return (
     <div
       ref={pageRef}
-      role='main'
       aria-label='Your Library'
       className={clsx(
-        'library-page bg-base-200 text-base-content flex select-none flex-col overflow-hidden',
-        appService?.isIOSApp ? 'h-[100vh]' : 'h-dvh',
+        'library-page bg-base-200 text-base-content flex h-[100vh] select-none flex-col overflow-hidden',
         appService?.hasRoundedWindow && isRoundedWindow && 'window-border rounded-window',
       )}
     >
@@ -694,6 +734,7 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
                 handleSetSelectMode={handleSetSelectMode}
                 handleShowDetailsBook={handleShowDetailsBook}
                 booksTransferProgress={booksTransferProgress}
+                handlePushLibrary={pushLibrary}
               />
             </div>
           </OverlayScrollbarsComponent>
@@ -730,6 +771,8 @@ const LibraryPageContent = ({ searchParams }: { searchParams: ReadonlyURLSearchP
       )}
       <AboutWindow />
       <UpdaterWindow />
+      <MigrateDataWindow />
+      {isFontLayoutSettingsDialogOpen && <SettingsDialog bookKey={''} />}
       <Toast />
     </div>
   );

@@ -68,8 +68,8 @@ const TOCItemView = React.memo<{
       className={clsx(
         'flex w-full cursor-pointer items-center rounded-md py-4 sm:py-2',
         isActive
-          ? 'sm:bg-base-300/85 sm:hover:bg-base-300 sm:text-base-content text-blue-500'
-          : 'sm:hover:bg-base-300/85',
+          ? 'sm:bg-base-300/65 sm:hover:bg-base-300/75 sm:text-base-content text-blue-500'
+          : 'sm:hover:bg-base-300/75',
       )}
       style={{
         height: itemSize ? `${itemSize}px` : 'auto',
@@ -137,6 +137,7 @@ export const StaticListRow: React.FC<ListRowProps> = ({
         'border-base-300 w-full border-b sm:border-none',
         'pe-4 ps-2 pt-[1px] sm:pe-2',
       )}
+      title={flatItem.item.label || ''}
     >
       <TOCItemView
         bookKey={bookKey}
@@ -166,7 +167,7 @@ export const VirtualListRow: React.FC<
   const flatItem = flatItems[index];
 
   return (
-    <div style={style}>
+    <div style={style} title={flatItem.item.label || ''}>
       <StaticListRow
         bookKey={bookKey}
         flatItem={flatItem}

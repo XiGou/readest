@@ -1,5 +1,6 @@
 'use client';
 
+import i18n from '@/i18n/i18n';
 import { useEffect } from 'react';
 import { IconContext } from 'react-icons';
 import { AuthProvider } from '@/context/AuthContext';
@@ -7,13 +8,20 @@ import { useEnv } from '@/context/EnvContext';
 import { CSPostHogProvider } from '@/context/PHContext';
 import { SyncProvider } from '@/context/SyncContext';
 import { initSystemThemeListener, loadDataTheme } from '@/store/themeStore';
-import { useDefaultIconSize } from '@/hooks/useResponsiveSize';
+import { useSettingsStore } from '@/store/settingsStore';
+import { useDeviceControlStore } from '@/store/deviceStore';
 import { useSafeAreaInsets } from '@/hooks/useSafeAreaInsets';
+import { useDefaultIconSize } from '@/hooks/useResponsiveSize';
+import { useBackgroundTexture } from '@/hooks/useBackgroundTexture';
+import { useEinkMode } from '@/hooks/useEinkMode';
 import { getLocale } from '@/utils/misc';
-import i18n from '@/i18n/i18n';
 
 const Providers = ({ children }: { children: React.ReactNode }) => {
-  const { appService } = useEnv();
+  const { envConfig, appService } = useEnv();
+  const { applyUILanguage } = useSettingsStore();
+  const { setScreenBrightness } = useDeviceControlStore();
+  const { applyBackgroundTexture } = useBackgroundTexture();
+  const { applyEinkMode } = useEinkMode();
   const iconSize = useDefaultIconSize();
   useSafeAreaInsets(); // Initialize safe area insets
 
@@ -34,8 +42,20 @@ const Providers = ({ children }: { children: React.ReactNode }) => {
     loadDataTheme();
     if (appService) {
       initSystemThemeListener(appService);
+      appService.loadSettings().then((settings) => {
+        const globalViewSettings = settings.globalViewSettings;
+        applyUILanguage(globalViewSettings.uiLanguage);
+        const brightness = settings.screenBrightness;
+        if (appService.hasScreenBrightness && brightness >= 0) {
+          setScreenBrightness(brightness / 100);
+        }
+        applyBackgroundTexture(envConfig, globalViewSettings);
+        if (appService.isAndroidApp) {
+          applyEinkMode(globalViewSettings.isEink);
+        }
+      });
     }
-  }, [appService]);
+  }, [envConfig, appService, applyUILanguage, setScreenBrightness, applyBackgroundTexture]);
 
   // Make sure appService is available in all children components
   if (!appService) return;

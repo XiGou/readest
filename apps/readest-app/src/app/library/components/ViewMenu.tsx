@@ -92,10 +92,7 @@ const ViewMenu: React.FC<ViewMenuProps> = ({ setIsDropdownOpen }) => {
   };
 
   return (
-    <Menu
-      label={_('View Menu')}
-      className='view-menu dropdown-content no-triangle border-base-100 z-20 mt-2 shadow-2xl'
-    >
+    <Menu className='view-menu dropdown-content no-triangle border-base-100 z-20 mt-2 shadow-2xl'>
       {viewOptions.map((option) => (
         <MenuItem
           key={option.value}
@@ -105,7 +102,7 @@ const ViewMenu: React.FC<ViewMenuProps> = ({ setIsDropdownOpen }) => {
           onClick={() => handleSetViewMode(option.value as LibraryViewModeType)}
         />
       ))}
-      <hr className='border-base-200 my-1' />
+      <hr aria-hidden='true' className='border-base-200 my-1' />
       <MenuItem
         label={_('Book Covers')}
         buttonClass='h-8'
@@ -121,7 +118,7 @@ const ViewMenu: React.FC<ViewMenuProps> = ({ setIsDropdownOpen }) => {
           onClick={() => handleToggleCropCovers(option.value as LibraryCoverFitType)}
         />
       ))}
-      <hr className='border-base-200 my-1' />
+      <hr aria-hidden='true' className='border-base-200 my-1' />
       <MenuItem
         label={_('Sort by...')}
         buttonClass='h-8'
@@ -137,7 +134,7 @@ const ViewMenu: React.FC<ViewMenuProps> = ({ setIsDropdownOpen }) => {
           onClick={() => handleSetSortBy(option.value as LibrarySortByType)}
         />
       ))}
-      <hr className='border-base-200 my-1' />
+      <hr aria-hidden='true' className='border-base-200 my-1' />
       {sortingOptions.map((option) => (
         <MenuItem
           key={option.value.toString()}

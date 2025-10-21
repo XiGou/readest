@@ -15,9 +15,13 @@ import { UserStorageQuota, UserDailyTranslationQuota } from '@/types/user';
 import { getDefaultMaxBlockSize, getDefaultMaxInlineSize } from '@/utils/config';
 import { stubTranslation as _ } from '@/utils/misc';
 
-export const LOCAL_BOOKS_SUBDIR = 'Readest/Books';
-export const CLOUD_BOOKS_SUBDIR = 'Readest/Books';
-export const LOCAL_FONTS_SUBDIR = 'Readest/Fonts';
+export const DATA_SUBDIR = 'Readest';
+export const LOCAL_BOOKS_SUBDIR = `${DATA_SUBDIR}/Books`;
+export const CLOUD_BOOKS_SUBDIR = `${DATA_SUBDIR}/Books`;
+export const LOCAL_FONTS_SUBDIR = `${DATA_SUBDIR}/Fonts`;
+export const LOCAL_IMAGES_SUBDIR = `${DATA_SUBDIR}/Images`;
+
+export const SETTINGS_FILENAME = 'settings.json';
 
 export const SUPPORTED_BOOK_EXTS = [
   'epub',
@@ -54,8 +58,10 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   alwaysOnTop: false,
   openBookInNewWindow: true,
   alwaysShowStatusBar: false,
+  alwaysInForeground: false,
   autoCheckUpdates: true,
   screenWakeLock: false,
+  screenBrightness: -1, // -1~100, -1 for system default
   openLastBooks: false,
   lastOpenBooks: [],
   autoImportBooksOnOpen: false,
@@ -70,6 +76,14 @@ export const DEFAULT_SYSTEM_SETTINGS: Partial<SystemSettings> = {
   lastSyncedAtBooks: 0,
   lastSyncedAtConfigs: 0,
   lastSyncedAtNotes: 0,
+};
+
+export const HIGHLIGHT_COLOR_HEX: Record<HighlightColor, string> = {
+  red: '#f87171', // red-400
+  yellow: '#facc15', // yellow-400
+  green: '#4ade80', // green-400
+  blue: '#60a5fa', // blue-400
+  violet: '#a78bfa', // violet-400
 };
 
 export const DEFAULT_READSETTINGS: ReadSettings = {
@@ -88,6 +102,7 @@ export const DEFAULT_READSETTINGS: ReadSettings = {
     underline: 'green',
     squiggly: 'blue',
   },
+  customHighlightColors: HIGHLIGHT_COLOR_HEX,
 };
 
 export const DEFAULT_MOBILE_READSETTINGS: Partial<ReadSettings> = {
@@ -126,6 +141,7 @@ export const DEFAULT_BOOK_LAYOUT: BookLayout = {
   maxInlineSize: getDefaultMaxInlineSize(),
   maxBlockSize: getDefaultMaxBlockSize(),
   animated: false,
+  isEink: false,
   writingMode: 'auto',
   vertical: false,
   rtl: false,
@@ -135,8 +151,8 @@ export const DEFAULT_BOOK_LAYOUT: BookLayout = {
 
 export const DEFAULT_BOOK_STYLE: BookStyle = {
   zoomLevel: 100,
-  paragraphMargin: 1,
-  lineHeight: 1.6,
+  paragraphMargin: 0.6,
+  lineHeight: 1.4,
   wordSpacing: 0,
   letterSpacing: 0,
   textIndent: 0,
@@ -147,6 +163,9 @@ export const DEFAULT_BOOK_STYLE: BookStyle = {
   overrideFont: false,
   overrideLayout: false,
   overrideColor: false,
+  backgroundTextureId: 'none',
+  backgroundOpacity: 0.6,
+  backgroundSize: 'cover',
   codeHighlighting: false,
   codeLanguage: 'auto-detect',
   userStylesheet: '',
@@ -168,6 +187,8 @@ export const DEFAULT_MOBILE_VIEW_SETTINGS: Partial<ViewSettings> = {
 export const DEFAULT_CJK_VIEW_SETTINGS: Partial<ViewSettings> = {
   fullJustification: true,
   textIndent: 2,
+  paragraphMargin: 1,
+  lineHeight: 1.6,
 };
 
 export const DEFAULT_FIXED_LAYOUT_VIEW_SETTINGS: Partial<ViewSettings> = {
@@ -222,6 +243,7 @@ export const SERIF_FONTS = [
   'Bitter',
   'Literata',
   'Merriweather',
+  'Roboto Slab',
   'Vollkorn',
   'Georgia',
   'Times New Roman',
@@ -595,14 +617,6 @@ export const DOUBLE_CLICK_INTERVAL_THRESHOLD_MS = 250;
 export const DISABLE_DOUBLE_CLICK_ON_MOBILE = true;
 export const LONG_HOLD_THRESHOLD = 500;
 
-export const HIGHLIGHT_COLOR_HEX: Record<HighlightColor, string> = {
-  red: '#f87171', // red-400
-  yellow: '#facc15', // yellow-400
-  green: '#4ade80', // green-400
-  blue: '#60a5fa', // blue-400
-  violet: '#a78bfa', // violet-400
-};
-
 export const CUSTOM_THEME_TEMPLATES = [
   {
     light: {
@@ -687,7 +701,7 @@ export const TRANSLATED_LANGS = {
 
 export const TRANSLATOR_LANGS: Record<string, string> = {
   ...TRANSLATED_LANGS,
-  no: 'Norsk',
+  nb: 'Bokmål',
   sv: 'Svenska',
   fi: 'Suomi',
   da: 'Dansk',
@@ -699,6 +713,7 @@ export const TRANSLATOR_LANGS: Record<string, string> = {
   lt: 'Lietuvių',
   sl: 'Slovenščina',
   sk: 'Slovenčina',
+  fa: 'فارسی',
 };
 
 export const SUPPORTED_LANGS: Record<string, string> = { ...TRANSLATED_LANGS, zh: '中文' };

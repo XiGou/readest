@@ -169,3 +169,32 @@ impl<R: Runtime> NativeBridge<R> {
             .map_err(Into::into)
     }
 }
+
+impl<R: Runtime> NativeBridge<R> {
+    pub fn get_screen_brightness(&self) -> crate::Result<GetScreenBrightnessResponse> {
+        self.0
+            .run_mobile_plugin("get_screen_brightness", ())
+            .map_err(Into::into)
+    }
+}
+
+impl<R: Runtime> NativeBridge<R> {
+    pub fn set_screen_brightness(
+        &self,
+        payload: SetScreenBrightnessRequest,
+    ) -> crate::Result<SetScreenBrightnessResponse> {
+        self.0
+            .run_mobile_plugin("set_screen_brightness", payload)
+            .map_err(Into::into)
+    }
+}
+
+impl<R: Runtime> NativeBridge<R> {
+    pub fn request_manage_storage_permission(
+        &self,
+    ) -> crate::Result<RequestManageStoragePermissionResponse> {
+        self.0
+            .run_mobile_plugin("request_manage_storage_permission", ())
+            .map_err(Into::into)
+    }
+}

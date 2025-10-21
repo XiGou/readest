@@ -1,5 +1,6 @@
 local Device = require("device")
 local Event = require("ui/event")
+local Dispatcher = require("dispatcher")
 local InfoMessage = require("ui/widget/infomessage")
 local WidgetContainer = require("ui/widget/container/widgetcontainer")
 local MultiInputDialog = require("ui/widget/multiinputdialog")
@@ -40,35 +41,25 @@ function ReadestSync:init()
     self.last_sync_timestamp = 0
     self.settings = G_reader_settings:readSetting("readest_sync", self.default_settings)
 
-    self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
 end
 
 function ReadestSync:onDispatcherRegisterActions()
-   --
+    Dispatcher:registerAction("readest_sync_set_autosync",
+        { category="string", event="ReadestSyncToggleAutoSync", title=_("Set auto progress sync"), reader=true,
+        args={true, false}, toggle={_("on"), _("off")},})
+    Dispatcher:registerAction("readest_sync_toggle_autosync", { category="none", event="ReadestSyncToggleAutoSync", title=_("Toggle auto readest sync"), reader=true,})
+    Dispatcher:registerAction("readest_sync_push_progress", { category="none", event="ReadestSyncPushProgress", title=_("Push readest progress from this device"), reader=true,})
+    Dispatcher:registerAction("readest_sync_pull_progress", { category="none", event="ReadestSyncPullProgress", title=_("Pull readest progress from other devices"), reader=true, separator=true,})
 end
 
-function ReadestSync:needsLogin()
-    return not self.settings.access_token or not self.settings.expires_at
-        or self.settings.expires_at < os.time() + 60
-end
-
-function ReadestSync:tryRefreshToken()
-    if self.settings.refresh_token and self.settings.expires_at
-        and self.settings.expires_at < os.time() - self.settings.expires_in / 2 then
-        local client = self:getSupabaseAuthClient()
-        client:refresh_token(self.settings.refresh_token, function(success, response)
-            if success then
-                self.settings.access_token = response.access_token
-                self.settings.refresh_token = response.refresh_token
-                self.settings.expires_at = response.expires_at
-                self.settings.expires_in = response.expires_in
-                G_reader_settings:saveSetting("readest_sync", self.settings)
-            else
-                logger.err("ReadestSync: Token refresh failed:", response or "Unknown error")
-            end
+function ReadestSync:onReaderReady()
+    if self.settings.auto_sync and self.settings.access_token then
+        UIManager:nextTick(function()
+            self:pullBookConfig(false)
         end)
     end
+    self:onDispatcherRegisterActions()
 end
 
 function ReadestSync:addToMainMenu(menu_items)
@@ -98,17 +89,14 @@ function ReadestSync:addToMainMenu(menu_items)
                 text = _("Auto sync book configs"),
                 checked_func = function() return self.settings.auto_sync end,
                 callback = function()
-                    self.settings.auto_sync = not self.settings.auto_sync
-                    if self.settings.auto_sync then
-                        self:pullBookConfig(false)
-                    end
+                    self:onReadestSyncToggleAutoSync()
                 end,
                 separator = true,
             },
             {
                 text = _("Push book config now"),
                 enabled_func = function()
-                    return self.settings.access_token ~= nil
+                    return self.settings.access_token ~= nil and self.ui.document ~= nil
                 end,
                 callback = function()
                     self:pushBookConfig(true)
@@ -117,7 +105,7 @@ function ReadestSync:addToMainMenu(menu_items)
             {
                 text = _("Pull book config now"),
                 enabled_func = function()
-                    return self.settings.access_token ~= nil
+                    return self.settings.access_token ~= nil and self.ui.document ~= nil
                 end,
                 callback = function()
                     self:pullBookConfig(true)
@@ -125,6 +113,29 @@ function ReadestSync:addToMainMenu(menu_items)
             },
         }
     }
+end
+
+function ReadestSync:needsLogin()
+    return not self.settings.access_token or not self.settings.expires_at
+        or self.settings.expires_at < os.time() + 60
+end
+
+function ReadestSync:tryRefreshToken()
+    if self.settings.refresh_token and self.settings.expires_at
+        and self.settings.expires_at < os.time() - self.settings.expires_in / 2 then
+        local client = self:getSupabaseAuthClient()
+        client:refresh_token(self.settings.refresh_token, function(success, response)
+            if success then
+                self.settings.access_token = response.access_token
+                self.settings.refresh_token = response.refresh_token
+                self.settings.expires_at = response.expires_at
+                self.settings.expires_in = response.expires_in
+                G_reader_settings:saveSetting("readest_sync", self.settings)
+            else
+                logger.err("ReadestSync: Token refresh failed:", response or "Unknown error")
+            end
+        end)
+    end
 end
 
 function ReadestSync:getSupabaseAuthClient()
@@ -273,6 +284,83 @@ function ReadestSync:logout(menu)
     })
 end
 
+function normalizeIdentifier(identifier)
+    if identifier:match("urn:") then
+        -- Slice after the last ':'
+        return identifier:match("([^:]+)$")
+    elseif identifier:match(":") then
+        -- Slice after the first ':'
+        return identifier:match("^[^:]+:(.+)$")
+    end
+    return identifier
+end
+
+function normalizeAuthor(author)
+    -- Trim leading and trailing whitespace
+    author = author:gsub("^%s*(.-)%s*$", "%1")
+    return author
+end
+
+function ReadestSync:generateMetadataHash()
+    local doc_props = self.ui.doc_settings:readSetting("doc_props") or {}
+    local title = doc_props.title or ''
+    if title == '' then
+        local doc_path, filename = util.splitFilePathName(self.ui.doc_settings:readSetting("doc_path") or '')
+        local basename, suffix = util.splitFileNameSuffix(filename)
+        title = basename or ''
+    end
+
+    local authors = doc_props.authors or ''
+    if authors:find("\n") then
+        authors = util.splitToArray(authors, "\n")
+        for i, author in ipairs(authors) do
+            authors[i] = normalizeAuthor(author)
+        end
+        authors = table.concat(authors, ",")
+    else
+        authors = normalizeAuthor(authors)
+    end
+
+    local identifiers = doc_props.identifiers or ''
+    if identifiers:find("\n") then
+        local list = util.splitToArray(identifiers, "\n")
+        local normalized = {}
+        local priorities = { "uuid", "calibre", "isbn" }
+        local preferred = nil
+        for i, id in ipairs(list) do
+            normalized[i] = normalizeIdentifier(id)
+            local candidate = id:lower()
+            for _, p in ipairs(priorities) do
+                if candidate:find(p, 1, true) then
+                    preferred = normalized[i]
+                    break
+                end
+            end
+        end
+        if preferred then
+            identifiers = preferred
+        else
+            identifiers = table.concat(normalized, ",")
+        end
+    else
+        identifiers = normalizeIdentifier(identifiers)
+    end
+    local doc_meta = title .. "|" .. authors .. "|" .. identifiers
+    local meta_hash = sha2.md5(doc_meta)
+    return meta_hash
+end
+
+function ReadestSync:getMetaHash()
+    local doc_readest_sync = self.ui.doc_settings:readSetting("readest_sync") or {}
+    local meta_hash = doc_readest_sync.meta_hash_v1
+    if not meta_hash then
+        meta_hash = self:generateMetadataHash()
+        doc_readest_sync.meta_hash_v1 = meta_hash
+        self.ui.doc_settings:saveSetting("readest_sync", doc_readest_sync)
+    end
+    return meta_hash
+end
+
 function ReadestSync:getDocumentIdentifier()
     return self.ui.doc_settings:readSetting("partial_md5_checksum")
 end
@@ -325,7 +413,8 @@ end
 
 function ReadestSync:getCurrentBookConfig()
     local book_hash = self:getDocumentIdentifier()
-    if not book_hash then
+    local meta_hash = self:getMetaHash()
+    if not book_hash or not meta_hash then
         UIManager:show(InfoMessage:new{
             text = _("Cannot identify the current book"),
             timeout = 2,
@@ -335,6 +424,7 @@ function ReadestSync:getCurrentBookConfig()
 
     local config = {
         bookHash = book_hash,
+        metaHash = meta_hash,
         progress = "",
         xpointer = "",
         updatedAt = os.time() * 1000,
@@ -371,7 +461,7 @@ function ReadestSync:pushBookConfig(interactive)
     local config = self:getCurrentBookConfig()
     if not config then return end
 
-    if NetworkMgr:willRerunWhenOnline(function() self:pushBookConfig(interactive) end) then
+    if interactive and NetworkMgr:willRerunWhenOnline(function() self:pushBookConfig(interactive) end) then
         return
     end
 
@@ -437,7 +527,8 @@ function ReadestSync:pullBookConfig(interactive)
     end
 
     local book_hash = self:getDocumentIdentifier()
-    if not book_hash then return end
+    local meta_hash = self:getMetaHash()
+    if not book_hash or not meta_hash then return end
 
     if NetworkMgr:willRerunWhenOnline(function() self:pullBookConfig(interactive) end) then
         return
@@ -468,6 +559,7 @@ function ReadestSync:pullBookConfig(interactive)
             since = 0,
             type = "configs",
             book = book_hash,
+            meta_hash = meta_hash,
         },
         function(success, response)
             if not success then
@@ -515,12 +607,23 @@ function ReadestSync:pullBookConfig(interactive)
     )
 end
 
-function ReadestSync:onReaderReady()
-    if self.settings.auto_sync and self.settings.access_token then
-        UIManager:nextTick(function()
-            self:pullBookConfig(false)
-        end)
+function ReadestSync:onReadestSyncToggleAutoSync(toggle)
+    if toggle == self.settings.auto_sync then
+        return true
     end
+    self.settings.auto_sync = not self.settings.auto_sync
+    G_reader_settings:saveSetting("readest_sync", self.settings)
+    if self.settings.auto_sync and self.ui.document then
+        self:pullBookConfig(false)
+    end
+end
+
+function ReadestSync:onReadestSyncPushProgress()
+    self:pushBookConfig(true)
+end
+
+function ReadestSync:onReadestSyncPullProgress()
+    self:pullBookConfig(true)
 end
 
 function ReadestSync:onCloseDocument()

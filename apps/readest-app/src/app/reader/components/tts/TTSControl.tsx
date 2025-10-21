@@ -2,19 +2,22 @@ import clsx from 'clsx';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useEnv } from '@/context/EnvContext';
 import { useThemeStore } from '@/store/themeStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { useBookDataStore } from '@/store/bookDataStore';
 import { useReaderStore } from '@/store/readerStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { TTSController, SILENCE_DATA, TTSMark } from '@/services/tts';
+import { getMediaSession, TauriMediaSession } from '@/libs/mediaSession';
 import { getPopupPosition, Position } from '@/utils/sel';
 import { eventDispatcher } from '@/utils/event';
 import { parseSSMLLang } from '@/utils/ssml';
 import { throttle } from '@/utils/throttle';
-import { invokeUseBackgroundAudio } from '@/utils/bridge';
 import { CFI } from '@/libs/document';
 import { Insets } from '@/types/misc';
 import { Overlay } from '@/components/Overlay';
+import { fetchImageAsBase64 } from '@/utils/image';
+import { invokeUseBackgroundAudio } from '@/utils/bridge';
 import Popup from '@/components/Popup';
 import TTSPanel from './TTSPanel';
 import TTSIcon from './TTSIcon';
@@ -33,6 +36,7 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
   const _ = useTranslation();
   const { appService } = useEnv();
   const { safeAreaInsets } = useThemeStore();
+  const { settings } = useSettingsStore();
   const { getBookData } = useBookDataStore();
   const { hoveredBookKey, getView, getProgress, getViewSettings } = useReaderStore();
   const { setViewSettings, setTTSEnabled } = useReaderStore();
@@ -50,6 +54,9 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
   const [timeoutTimestamp, setTimeoutTimestamp] = useState(0);
   const [timeoutFunc, setTimeoutFunc] = useState<ReturnType<typeof setTimeout> | null>(null);
 
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showIndicatorWithinTimeout, setShowIndicatorWithinTimeout] = useState(true);
+
   const popupPadding = useResponsiveSize(POPUP_PADDING);
   const maxWidth = window.innerWidth - 2 * popupPadding;
   const popupWidth = Math.min(maxWidth, useResponsiveSize(POPUP_WIDTH));
@@ -58,6 +65,7 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
   const iconRef = useRef<HTMLDivElement>(null);
   const unblockerAudioRef = useRef<HTMLAudioElement | null>(null);
   const ttsControllerRef = useRef<TTSController | null>(null);
+  const mediaSessionRef = useRef<TauriMediaSession | MediaSession | null>(null);
   const [ttsController, setTtsController] = useState<TTSController | null>(null);
   const [ttsClientsInited, setTtsClientsInitialized] = useState(false);
 
@@ -92,6 +100,53 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
     }
   };
 
+  const initMediaSession = async () => {
+    const mediaSession = getMediaSession();
+    if (!mediaSession) return;
+
+    mediaSessionRef.current = mediaSession;
+
+    if (mediaSession instanceof TauriMediaSession) {
+      const bookData = getBookData(bookKey);
+      const progress = getProgress(bookKey);
+      if (!bookData || !bookData.book) return;
+      const { title, author, coverImageUrl } = bookData.book;
+      const { sectionLabel } = progress || {};
+
+      let artworkImage = '/icon.png';
+      try {
+        artworkImage = await fetchImageAsBase64(coverImageUrl || '/icon.png');
+      } catch {
+        artworkImage = await fetchImageAsBase64('/icon.png');
+      }
+
+      await mediaSession.setActive({
+        active: true,
+        keepAppInForeground: settings.alwaysInForeground,
+        notificationTitle: _('Read Aloud'),
+        notificationText: _('Ready to read aloud'),
+        foregroundServiceTitle: _('Read Aloud'),
+        foregroundServiceText: _('Ready to read aloud'),
+      });
+      mediaSession.updateMetadata({
+        title: title,
+        artist: sectionLabel || title,
+        album: author,
+        artwork: artworkImage,
+      });
+    }
+  };
+
+  const deinitMediaSession = async () => {
+    if (mediaSessionRef.current && mediaSessionRef.current instanceof TauriMediaSession) {
+      await mediaSessionRef.current.setActive({
+        active: false,
+        keepAppInForeground: settings.alwaysInForeground,
+      });
+    }
+    mediaSessionRef.current = null;
+  };
+
   useEffect(() => {
     return () => {
       if (ttsControllerRef.current) {
@@ -121,13 +176,24 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
       const progress = getProgress(bookKey);
       const { sectionLabel } = progress || {};
       const mark = (e as CustomEvent<TTSMark>).detail;
-      if (appService?.isMobileApp && 'mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-          title: mark?.text || '',
-          artist: sectionLabel || title,
-          album: author,
-          artwork: [{ src: coverImageUrl || '/icon.png', sizes: '512x512', type: 'image/png' }],
-        });
+
+      if (mediaSessionRef.current) {
+        const mediaSession = mediaSessionRef.current;
+        if (mediaSession instanceof TauriMediaSession) {
+          mediaSession.updateMetadata({
+            title: mark?.text || '',
+            artist: sectionLabel || title,
+            album: author,
+            artwork: '',
+          });
+        } else {
+          mediaSession.metadata = new MediaMetadata({
+            title: mark?.text || '',
+            artist: sectionLabel || title,
+            album: author,
+            artwork: [{ src: coverImageUrl || '/icon.png', sizes: '512x512', type: 'image/png' }],
+          });
+        }
       }
     };
 
@@ -144,6 +210,30 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
       if (cfi) {
         viewSettings.ttsLocation = cfi || '';
         setViewSettings(bookKey, viewSettings);
+      }
+
+      if (!view.renderer.scrolled) {
+        view.renderer.scrollToAnchor(range);
+      } else {
+        const rect = range.getBoundingClientRect();
+        const { start, size, viewSize, sideProp } = view.renderer;
+        const positionStart = rect[sideProp === 'height' ? 'y' : 'x'] + viewSettings.marginTopPx;
+        const positionEnd = rect[sideProp === 'height' ? 'height' : 'width'] + positionStart;
+        const offsetStart = view.book.dir === 'rtl' ? viewSize - positionStart : positionStart;
+        const offsetEnd = view.book.dir === 'rtl' ? viewSize - positionEnd : positionEnd;
+
+        const showHeader = viewSettings.showHeader;
+        const showFooter = viewSettings.showFooter;
+        const showBarsOnScroll = viewSettings.showBarsOnScroll;
+        const headerScrollOverlap = showHeader && showBarsOnScroll ? 44 : 0;
+        const footerScrollOverlap = showFooter && showBarsOnScroll ? 44 : 0;
+        const scrollingOverlap = viewSettings.scrollingOverlap;
+        const endInNextView = offsetEnd > start + size - footerScrollOverlap - scrollingOverlap;
+        const startInPrevView = offsetStart < start + headerScrollOverlap + scrollingOverlap;
+        if (endInNextView || startInPrevView) {
+          const scrollTo = offsetStart - headerScrollOverlap - scrollingOverlap;
+          view.renderer.scrollToAnchor(scrollTo / viewSize);
+        }
       }
     };
 
@@ -205,7 +295,10 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
       if (appService?.isMobile) {
         unblockAudio();
       }
+      await initMediaSession();
       setTtsClientsInitialized(false);
+
+      setShowIndicator(true);
       const ttsController = new TTSController(appService, view);
       await ttsController.init();
       await ttsController.initViewTTS();
@@ -223,7 +316,6 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
       }
       setTtsClientsInitialized(true);
       setTTSEnabled(bookKey, true);
-      setShowIndicator(true);
     } catch (error) {
       eventDispatcher.dispatch('toast', {
         message: _('TTS not supported for this document'),
@@ -257,6 +349,15 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
         await ttsController.resume();
       } else {
         await ttsController.start();
+      }
+    }
+
+    if (mediaSessionRef.current) {
+      const mediaSession = mediaSessionRef.current;
+      if (mediaSession instanceof TauriMediaSession) {
+        await mediaSession.updatePlaybackState({ playing: !isPlaying });
+      } else {
+        mediaSession.playbackState = isPlaying ? 'paused' : 'playing';
       }
     }
   }, [isPlaying, isPaused]);
@@ -302,6 +403,7 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
       if (appService?.isMobile) {
         releaseUnblockAudio();
       }
+      await deinitMediaSession();
       setTTSEnabled(bookKey, false);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -425,24 +527,33 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
   };
 
   useEffect(() => {
-    if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('play', () => {
+    const { current: mediaSession } = mediaSessionRef;
+    if (mediaSession) {
+      mediaSession.setActionHandler('play', () => {
         handleTogglePlay();
       });
 
-      navigator.mediaSession.setActionHandler('pause', () => {
+      mediaSession.setActionHandler('pause', () => {
         handleTogglePlay();
       });
 
-      navigator.mediaSession.setActionHandler('stop', () => {
+      mediaSession.setActionHandler('stop', () => {
         handlePause();
       });
 
-      navigator.mediaSession.setActionHandler('seekforward', () => {
+      mediaSession.setActionHandler('seekforward', () => {
+        handleForward(true);
+      });
+
+      mediaSession.setActionHandler('seekbackward', () => {
+        handleBackward(true);
+      });
+
+      mediaSession.setActionHandler('nexttrack', () => {
         handleForward();
       });
 
-      navigator.mediaSession.setActionHandler('seekbackward', () => {
+      mediaSession.setActionHandler('previoustrack', () => {
         handleBackward();
       });
     }
@@ -463,10 +574,38 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showPanel]);
 
+  useEffect(() => {
+    if (hoveredBookKey) {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      const showTimeout = setTimeout(() => {
+        setShowIndicatorWithinTimeout(true);
+      }, 100);
+      hoverTimeoutRef.current = showTimeout;
+    } else {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+        hoverTimeoutRef.current = null;
+      }
+      const hideTimeout = setTimeout(() => {
+        setShowIndicatorWithinTimeout(false);
+      }, 5000);
+      hoverTimeoutRef.current = hideTimeout;
+    }
+
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, [hoveredBookKey]);
+
   return (
     <>
       {showPanel && <Overlay onDismiss={handleDismissPopup} />}
-      {showIndicator && (
+      {(showPanel || (showIndicator && showIndicatorWithinTimeout)) && (
         <div
           ref={iconRef}
           className={clsx(

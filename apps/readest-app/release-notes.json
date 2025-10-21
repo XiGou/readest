@@ -1,5 +1,83 @@
 {
   "releases": {
+    "0.9.88": {
+      "date": "2025-10-18",
+      "notes": [
+        "TTS: Fixed issue where the read-aloud indicator disappeared too quickly",
+        "Layout: Overriding book layout no longer affects explicitly set text alignment",
+        "Reader: Added localized number display for reading progress in vertical layout",
+        "Reader: Enhanced swipe responsiveness for smoother page transitions",
+        "Settings: Added an option to disable animations when using E-Ink mode"
+      ]
+    },
+    "0.9.87": {
+      "date": "2025-10-16",
+      "notes": [
+        "Reader: Improved chapter detection with better chapter title recognition",
+        "Reader: Enhanced compatibility for parsing more footnote formats",
+        "Theme: Fixed auto theme switching in new reader windows",
+        "TTS: Improved scrolling accuracy to highlighted text during read-aloud",
+        "TTS: Fixed crash issues on certain Android systems"
+      ]
+    },
+    "0.9.86": {
+      "date": "2025-10-14",
+      "notes": [
+        "Reader: Added support for per-book background image customization",
+        "Reader: Added option to override book language metadata for improved hyphenation accuracy",
+        "Sync: Readest sync in KOReader can now be triggered using gesture controls",
+        "Sync: Fixed a crash in KOReader that occurred when syncing progress without an open book",
+        "Sync: Improved upload performance with concurrent upload support"
+      ]
+    },
+    "0.9.85": {
+      "date": "2025-10-14",
+      "notes": [
+        "TTS: Improved media session control compatibility across more Android systems",
+        "TTS: Made the TTS icon less distracting during read-aloud mode",
+        "Settings: Added an option to adjust screen brightness while reading",
+        "Settings: Added support for custom background images",
+        "PDF: Fixed an issue where scrolling and panning didn’t work correctly when zoomed in",
+        "Android: Added adaptive launcher icon for better system integration",
+        "Reader: Added keyboard shortcuts for toggling bookmarks",
+        "Reader: Annotations are now rendered instantly when opening files"
+      ]
+    },
+    "0.9.82": {
+      "date": "2025-10-01",
+      "notes": [
+        "Sync: More reliable syncing between KOReader and Readest",
+        "MOBI: Fixed an issue where some footnotes in MOBI/AZW files were not parsed correctly",
+        "Storage: Added support for changing data location on Windows, macOS, Linux, and Android",
+        "Windows: Portable EXE version now stores all reading data in the directory of the executable",
+        "Android: Added background TTS support with media session controls",
+        "WebView: Extended compatibility down to version 92",
+        "Settings: Added global settings menu to the library page",
+        "iOS: Fixed an issue where custom theme colors were not handled correctly on older Safari versions",
+        "TTS: Added more languages for Edge TTS"
+      ]
+    },
+    "0.9.81": {
+      "date": "2025-09-19",
+      "notes": [
+        "TTS: Added desktop common media control support when TTS is playing",
+        "PDF: Disabled swipe-up gesture for toggling the action bar when zoomed in",
+        "Fonts: Fixed an issue where embedded fonts in ebooks were occasionally not applied",
+        "Reader: Fixed an issue where newly created highlights sometimes would not appear",
+        "Reader: Enabled scrolling in the menu when the menu is too long"
+      ]
+    },
+    "0.9.80": {
+      "date": "2025-09-19",
+      "notes": [
+        "Accessibility: Added support for popular screen readers on all platforms, making books accessible to readers with visual impairments",
+        "Sync: Progress is now synced across different versions of the same book by aggregated metadata",
+        "Library: Groups are now displayed in list view for easier organization",
+        "Library: Added delete confirmation when removing books from the context menu",
+        "Fonts: Added support for fonts with subfamilies when importing TTF/OTF font files",
+        "Layout: Prevented layout shift in Android when the virtual keyboard appears"
+      ]
+    },
     "0.9.78": {
       "date": "2025-09-06",
       "notes": [

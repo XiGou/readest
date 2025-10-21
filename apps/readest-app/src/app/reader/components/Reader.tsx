@@ -141,8 +141,7 @@ const Reader: React.FC<{ ids?: string }> = ({ ids }) => {
   return libraryLoaded && settings.globalReadSettings ? (
     <div
       className={clsx(
-        `reader-page bg-base-100 text-base-content select-none overflow-hidden`,
-        appService?.isIOSApp ? 'h-[100vh]' : 'h-dvh',
+        'reader-page bg-base-100 text-base-content h-[100vh] select-none overflow-hidden',
         appService?.hasRoundedWindow && isRoundedWindow && 'window-border rounded-window',
       )}
     >

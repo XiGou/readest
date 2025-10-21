@@ -115,9 +115,10 @@ export class TxtToEpubConverter {
             [
               String.raw`第[零〇一二三四五六七八九十0-9][零〇一二三四五六七八九十百千万0-9]*(?:[章卷节回讲篇封本册部话])(?:[：:、 　\(\)0-9]*[^\n-]{0,24})(?!\S)`,
               String.raw`(?:楔子|前言|简介|引言|序言|序章|总论|概论|后记)(?:[：: 　][^\n-]{0,24})?(?!\S)`,
+              String.raw`chapter[\s.]*[0-9]+(?:[：:. 　]+[^\n-]{0,50})?(?!\S)`,
             ].join('|') +
             ')',
-          'gu',
+          'gui',
         ),
       );
       chapterRegexps.push(
@@ -133,9 +134,35 @@ export class TxtToEpubConverter {
         ),
       );
     } else {
-      chapterRegexps.push(
-        /(?:^|\n|\s)(?:(Chapter|Part)\s+(\d+|[IVXLCDM]+)(?:[:.\-–—]?\s+[^\n]*)?|(?:Prologue|Epilogue|Introduction|Foreword)(?:[:.\-–—]?\s+[^\n]*)?)(?=\s|$)/gi,
-      );
+      const chapterKeywords = ['Chapter', 'Part', 'Section', 'Book', 'Volume', 'Act'];
+
+      const prefaceKeywords = [
+        'Prologue',
+        'Epilogue',
+        'Introduction',
+        'Foreword',
+        'Preface',
+        'Afterword',
+      ];
+
+      const numberPattern = String.raw`(\d+|[IVXLCDM]+)`;
+      const dotNumberPattern = String.raw`\.\d{1,4}`;
+      const titlePattern = String.raw`[^\n]{0,50}`;
+
+      const normalChapterPattern = chapterKeywords
+        .map(
+          (k) =>
+            String.raw`${k}\s*(?:${numberPattern}|${dotNumberPattern})(?:[:.\-–—]?\s*${titlePattern})?`,
+        )
+        .join('|');
+
+      const prefacePattern = prefaceKeywords
+        .map((k) => String.raw`${k}(?:[:.\-–—]?\s*${titlePattern})?`)
+        .join('|');
+
+      const combinedPattern = String.raw`(?:^|\n|\s)(?:${normalChapterPattern}|${prefacePattern})(?=\s|$)`;
+
+      chapterRegexps.push(new RegExp(combinedPattern, 'gi'));
     }
 
     const formatSegment = (segment: string): string => {

@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: setup node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
       - name: get version
         run: echo "PACKAGE_VERSION=$(node -p "require('./apps/readest-app/package.json').version")" >> $GITHUB_ENV
       - name: get release
@@ -81,6 +81,28 @@ jobs:
               prerelease: false
             })
 
+  build-koreader-plugin:
+    needs: get-release
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: create KOReader plugin zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version=${{ needs.get-release.outputs.release_version }}
+          plugin_zip="Readest-${version}-1.koplugin.zip"
+
+          cd apps/readest.koplugin
+          zip -r ../../${plugin_zip} .
+          cd ../..
+
+          echo "Uploading ${plugin_zip} to GitHub release"
+          gh release upload ${{ needs.get-release.outputs.release_tag }} ${plugin_zip} --clobber
+
   build-tauri:
     needs: get-release
     permissions:
@@ -135,7 +157,7 @@ jobs:
           version: 10.14.0
 
       - name: setup node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -153,7 +175,7 @@ jobs:
 
       - name: install NDK (for Android build only)
         if: matrix.config.release == 'android'
-        run: sdkmanager "ndk;27.0.11902837"
+        run: sdkmanager "ndk;28.2.13676358"
 
       - name: install dependencies
         run: pnpm install
@@ -200,7 +222,7 @@ jobs:
         if: matrix.config.release == 'android'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.11902837
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/28.2.13676358
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
@@ -288,12 +310,20 @@ jobs:
           echo "Uploading release notes to GitHub release"
           gh release upload ${{ needs.get-release.outputs.release_tag }} apps/readest-app/release-notes.json --clobber
 
-      - name: upload portable binaries (Windows only)
+      - name: build and upload portable binaries (Windows only)
         if: matrix.config.os == 'windows-latest'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         shell: bash
         run: |
+          echo "Building Portable Binaries"
+          pushd apps/readest-app/
+          echo "NEXT_PUBLIC_PORTABLE_APP=true" >> .env.local
+          pnpm tauri build
+
+          popd
           echo "Uploading Portable Binaries"
           arch=${{ matrix.config.arch }}
           version=${{ needs.get-release.outputs.release_version }}

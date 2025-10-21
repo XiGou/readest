@@ -59,8 +59,11 @@ const Dialog: React.FC<DialogProps> = ({
         onClose();
         return true;
       }
-    } else if (event.key === 'Escape') {
-      onClose();
+    } else {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+      event.stopPropagation();
     }
     return false;
   };
@@ -78,6 +81,9 @@ const Dialog: React.FC<DialogProps> = ({
 
     setIsFullHeightInMobile(!snapHeight && isMobile);
     window.addEventListener('keydown', handleKeyDown);
+    if (dialogRef.current) {
+      dialogRef.current.addEventListener('keydown', handleKeyDown);
+    }
     if (appService?.isAndroidApp) {
       acquireBackKeyInterception();
       eventDispatcher.onSync('native-key-down', handleKeyDown);
@@ -219,7 +225,7 @@ const Dialog: React.FC<DialogProps> = ({
         >
           <div className='bg-base-content/50 h-1 w-10 rounded-full'></div>
         </div>
-        <div className='dialog-header bg-base-100 sticky top-1 z-10 flex items-center justify-between px-2 sm:px-4'>
+        <div className='dialog-header sticky top-1 z-10 flex items-center justify-between px-2 sm:px-4'>
           {header ? (
             header
           ) : (

@@ -1,10 +1,11 @@
-import { EXTS } from '@/libs/document';
+import { BookMetadata, EXTS } from '@/libs/document';
 import { Book, BookConfig, BookProgress, WritingMode } from '@/types/book';
 import { SUPPORTED_LANGS } from '@/services/constants';
 import { getUserLang, makeSafeFilename } from './misc';
 import { getStorageType } from './storage';
 import { getDirFromLanguage } from './rtl';
 import { code6392to6391, isValidLang, normalizedLangCode } from './lang';
+import { md5 } from './md5';
 
 export const getDir = (book: Book) => {
   return `${book.hash}`;
@@ -46,16 +47,21 @@ export interface LanguageMap {
   [key: string]: string;
 }
 
+export interface Identifier {
+  scheme: string;
+  value: string;
+}
+
 export interface Contributor {
   name: LanguageMap;
 }
 
-const formatLanguageMap = (x: string | LanguageMap): string => {
+const formatLanguageMap = (x: string | LanguageMap, defaultLang = false): string => {
   const userLang = getUserLang();
   if (!x) return '';
   if (typeof x === 'string') return x;
   const keys = Object.keys(x);
-  return x[userLang] || x[keys[0]!]!;
+  return defaultLang ? x[keys[0]!]! : x[userLang] || x[keys[0]!]!;
 };
 
 export const listFormater = (narrow = false, lang = '') => {
@@ -166,16 +172,18 @@ export const formatDate = (date: string | number | Date | null | undefined, isUT
   }
 };
 
-export const formatFileSize = (size: number | null) => {
-  if (size === null) return '';
-  const formatter = new Intl.NumberFormat('en', {
+export const formatBytes = (bytes?: number | null, locale = 'en-US') => {
+  if (!bytes) return '';
+  const units = ['byte', 'kilobyte', 'megabyte', 'gigabyte', 'terabyte'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  const value = bytes / Math.pow(1024, i);
+  const formatter = new Intl.NumberFormat(locale, {
     style: 'unit',
-    unit: 'byte',
-    unitDisplay: 'narrow',
-    notation: 'compact',
-    compactDisplay: 'short',
+    unit: units[i],
+    unitDisplay: 'short',
+    maximumFractionDigits: 2,
   });
-  return formatter.format(size);
+  return formatter.format(value);
 };
 
 export const getCurrentPage = (book: Book, progress: BookProgress) => {
@@ -205,4 +213,89 @@ export const getBookDirFromWritingMode = (writingMode: WritingMode) => {
 export const getBookDirFromLanguage = (language: string | string[] | undefined) => {
   const lang = getPrimaryLanguage(language) || '';
   return getDirFromLanguage(lang);
+};
+
+const getTitleForHash = (title: string | LanguageMap) => {
+  return typeof title === 'string' ? title : formatLanguageMap(title, true);
+};
+
+const getAuthorsList = (contributors: string | string[] | Contributor | Contributor[]) => {
+  if (!contributors) return [];
+  return Array.isArray(contributors)
+    ? contributors
+        .map((contributor) =>
+          typeof contributor === 'string'
+            ? contributor
+            : formatLanguageMap(contributor?.name, true),
+        )
+        .filter(Boolean)
+    : [
+        typeof contributors === 'string'
+          ? contributors
+          : formatLanguageMap(contributors?.name, true),
+      ];
+};
+
+const normalizeIdentifier = (identifier: string) => {
+  try {
+    if (identifier.includes('urn:')) {
+      // Slice after the last ':'
+      return identifier.match(/[^:]+$/)?.[0] || '';
+    } else if (identifier.includes(':')) {
+      // Slice after the first ':'
+      return identifier.match(/^[^:]+:(.+)$/)?.[1] || '';
+    }
+  } catch {
+    return identifier;
+  }
+  return identifier;
+};
+
+const getPreferredIdentifier = (identifiers: string[] | Identifier[]) => {
+  for (const scheme of ['uuid', 'calibre', 'isbn']) {
+    const found = identifiers.find((identifier) =>
+      typeof identifier === 'string'
+        ? identifier.toLowerCase().includes(scheme)
+        : identifier.scheme.toLowerCase() === scheme,
+    );
+    if (found) {
+      return typeof found === 'string' ? normalizeIdentifier(found) : found.value;
+    }
+  }
+  return;
+};
+
+const getIdentifiersList = (
+  identifiers: undefined | string | string[] | Identifier | Identifier[],
+) => {
+  if (!identifiers) return [];
+  if (Array.isArray(identifiers)) {
+    const preferred = getPreferredIdentifier(identifiers);
+    if (preferred) {
+      return [preferred];
+    }
+  }
+  return Array.isArray(identifiers)
+    ? identifiers
+        .map((identifier) =>
+          typeof identifier === 'string' ? normalizeIdentifier(identifier) : identifier.value,
+        )
+        .filter(Boolean)
+    : typeof identifiers === 'string'
+      ? [normalizeIdentifier(identifiers)]
+      : [identifiers.value];
+};
+
+export const getMetadataHash = (metadata: BookMetadata) => {
+  try {
+    const title = getTitleForHash(metadata.title);
+    const authors = getAuthorsList(metadata.author).join(',');
+    const identifiers = getIdentifiersList(metadata.altIdentifier || metadata.identifier).join(',');
+    const hashSource = `${title}|${authors}|${identifiers}`;
+    const metaHash = md5(hashSource.normalize('NFC'));
+    return metaHash;
+  } catch (error) {
+    console.error('Error generating metadata hash:', error);
+  }
+  return;
 };

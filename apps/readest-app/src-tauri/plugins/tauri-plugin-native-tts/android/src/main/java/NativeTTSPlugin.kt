@@ -1,5 +1,6 @@
 package com.readest.native_tts
 
+import android.Manifest
 import android.os.Bundle
 import android.app.Activity
 import android.content.Context
@@ -8,8 +9,12 @@ import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
 import android.util.Log
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import androidx.core.content.ContextCompat
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
+import app.tauri.annotation.Permission
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
 import app.tauri.plugin.JSObject
@@ -25,6 +30,16 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import java.util.*
+import java.net.URL
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.Service
+import android.content.Intent
+import android.os.Build
+import android.os.IBinder
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 
 data class TTSVoiceData(
     val id: String,
@@ -60,12 +75,45 @@ class SetVoiceArgs(
     val voice: String? = null
 )
 
-@TauriPlugin
+@InvokeArg
+class UpdateMediaSessionMetadataArgs {
+  var title: String? = null
+  var artist: String? = null
+  var album: String? = null
+  var artwork: String? = null
+}
+
+@InvokeArg
+class UpdateMediaSessionStateArgs {
+  var playing: Boolean? = null
+  var position: Int? = null // in milliseconds
+  var duration: Int? = null // in milliseconds
+}
+
+@InvokeArg
+class SetMediaSessionActiveArgs {
+  var active: Boolean? = null
+  var keepAppInForeground: Boolean? = null
+  var notificationTitle: String? = null
+  var notificationText: String? = null
+  var foregroundServiceTitle: String? = null
+  var foregroundServiceText: String? = null
+}
+
+@TauriPlugin(
+  permissions = [
+    Permission(strings = [Manifest.permission.POST_NOTIFICATIONS], alias = "postNotification")
+  ]
+)
 class NativeTTSPlugin(private val activity: Activity) : Plugin(activity) {
     
     companion object {
         private const val TAG = "NativeTTSPlugin"
         private const val CHANNEL_NAME = "tts_events"
+        var NOTIFICATION_TITLE = "Read Aloud"
+        var NOTIFICATION_TEXT = "Ready to read aloud"
+        var FOREGROUND_SERVICE_TITLE = "Read Aloud"
+        var FOREGROUND_SERVICE_TEXT = "Ready to read aloud"
     }
     
     private var textToSpeech: TextToSpeech? = null
@@ -77,9 +125,8 @@ class NativeTTSPlugin(private val activity: Activity) : Plugin(activity) {
     
     private val eventChannels = ConcurrentHashMap<String, Channel<TTSMessageEvent>>()
     private val speakingJobs = ConcurrentHashMap<String, Job>()
-    
     private val coroutineScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-    
+
     @Command
     fun init(invoke: Invoke) {
         coroutineScope.launch {
@@ -373,13 +420,121 @@ class NativeTTSPlugin(private val activity: Activity) : Plugin(activity) {
             invoke.reject("Exception getting voices: ${e.message}")
         }
     }
+
+    private suspend fun loadArtworkFromUrl(urlString: String): Bitmap? {
+        return withContext(Dispatchers.IO) {
+            try {
+                when {
+                    urlString.startsWith("data:image/") -> {
+                        val base64Data = urlString.substringAfter("base64,")
+                        val decodedBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                        BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                    }
+                    urlString.startsWith("http") -> {
+                        val url = URL(urlString)
+                        val input: java.io.InputStream = url.openStream()
+                        BitmapFactory.decodeStream(input)
+                    }
+                    else -> {
+                        val assetPath = urlString.removePrefix("/")
+                        val inputStream = activity.assets.open(assetPath)
+                        BitmapFactory.decodeStream(inputStream)
+                    }
+                }
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+
+    @Command
+    fun update_media_session_metadata(invoke: Invoke) {
+        val args = invoke.parseArgs(UpdateMediaSessionMetadataArgs::class.java)
+        val title = args.title ?: ""
+        val artist = args.artist ?: ""
+        val album = args.album ?: ""
+
+        coroutineScope.launch {
+            try {
+                val artworkBitmap = args.artwork?.let { loadArtworkFromUrl(it) }
+                val intent = Intent(activity, MediaPlaybackService::class.java).apply {
+                    action = "UPDATE_METADATA"
+                    putExtra("title", title)
+                    putExtra("artist", artist)
+                    putExtra("album", album)
+                    putExtra("artwork", artworkBitmap)
+                }
+                activity.startService(intent)
+                invoke.resolve()
+            } catch (e: Exception) {
+                invoke.reject("Failed to update metadata: ${e.message}")
+            }
+        }
+    }
+
+    @Command
+    fun update_media_session_state(invoke: Invoke) {
+        var args = invoke.parseArgs(UpdateMediaSessionStateArgs::class.java)
+        val isPlaying = args.playing ?: false
+        val position = args.position ?: 0
+        val duration = args.duration ?: 0
+
+        try {
+            val intent = Intent(activity, MediaPlaybackService::class.java).apply {
+                action = "UPDATE_PLAYBACK_STATE"
+                putExtra("playing", isPlaying)
+                putExtra("position", position)
+                putExtra("duration", duration)
+            }
+            activity.startService(intent)
+            invoke.resolve()
+        } catch (e: Exception) {
+            invoke.reject("Failed to update playback state: ${e.message}")
+        }
+    }
+
+    @Command
+    fun set_media_session_active(invoke: Invoke) {
+        var args = invoke.parseArgs(SetMediaSessionActiveArgs::class.java)
+        val active = args.active ?: true
+
+        args.notificationTitle?.let { NOTIFICATION_TITLE = it }
+        args.notificationText?.let { NOTIFICATION_TEXT = it }
+        args.foregroundServiceTitle?.let { FOREGROUND_SERVICE_TITLE = it }
+        args.foregroundServiceText?.let { FOREGROUND_SERVICE_TEXT = it }
+
+        try {
+            val intent = Intent(activity, MediaPlaybackService::class.java)
+            if (active) {
+                MediaPlaybackService.pluginEventTrigger = { event, data -> trigger(event, data) }
+                MediaPlaybackService.currentTitle = FOREGROUND_SERVICE_TITLE
+                MediaPlaybackService.currentArtist = FOREGROUND_SERVICE_TEXT
+                ContextCompat.startForegroundService(activity, intent)
+            } else {
+                activity.stopService(intent)
+                MediaPlaybackService.pluginEventTrigger = null
+            }
+            invoke.resolve()
+        } catch (e: Exception) {
+            invoke.reject("Failed to set media session active state: ${e.message}")
+        }
+    }
     
     fun destroy() {
-        coroutineScope.cancel()
-        textToSpeech?.shutdown()
-        eventChannels.values.forEach { it.close() }
-        eventChannels.clear()
-        speakingJobs.values.forEach { it.cancel() }
-        speakingJobs.clear()
+        try {
+            val intent = Intent(activity, MediaPlaybackService::class.java)
+            activity.stopService(intent)
+
+            coroutineScope.cancel()
+            textToSpeech?.shutdown()
+            eventChannels.values.forEach { it.close() }
+            eventChannels.clear()
+            speakingJobs.values.forEach { it.cancel() }
+            speakingJobs.clear()
+
+            Log.d(TAG, "Plugin destroyed successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during plugin destruction", e)
+        }
     }
 }

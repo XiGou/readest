@@ -7,13 +7,14 @@ import {
   BookProgress,
   ViewSettings,
   TimeInfo,
+  FIXED_LAYOUT_FORMATS,
 } from '@/types/book';
 import { Insets } from '@/types/misc';
 import { EnvConfigType } from '@/services/environment';
 import { FoliateView } from '@/types/view';
 import { DocumentLoader, TOCItem } from '@/libs/document';
 import { updateToc } from '@/utils/toc';
-import { formatTitle, getPrimaryLanguage } from '@/utils/book';
+import { formatTitle, getMetadataHash, getPrimaryLanguage } from '@/utils/book';
 import { getBaseFilename } from '@/utils/path';
 import { SUPPORTED_LANGNAMES } from '@/services/constants';
 import { useSettingsStore } from './settingsStore';
@@ -31,6 +32,7 @@ interface ViewState {
   progress: BookProgress | null;
   ribbonVisible: boolean;
   ttsEnabled: boolean;
+  syncing: boolean;
   gridInsets: Insets | null;
   /* View settings for the view: 
     generally view settings have a hierarchy of global settings < book settings < view settings
@@ -47,6 +49,7 @@ interface ReaderStore {
   setHoveredBookKey: (key: string | null) => void;
   setBookmarkRibbonVisibility: (key: string, visible: boolean) => void;
   setTTSEnabled: (key: string, enabled: boolean) => void;
+  setIsSyncing: (key: string, syncing: boolean) => void;
   setProgress: (
     key: string,
     location: string,
@@ -95,7 +98,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
   getViewsById: (id: string) => {
     const { viewStates } = get();
     return Object.values(viewStates)
-      .filter((state) => state.key.startsWith(id))
+      .filter((state) => state.key && state.key.startsWith(id))
       .map((state) => state.view!);
   },
 
@@ -123,6 +126,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
           progress: null,
           ribbonVisible: false,
           ttsEnabled: false,
+          syncing: false,
           gridInsets: null,
           viewSettings: null,
         },
@@ -156,10 +160,15 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         const primaryLanguage = getPrimaryLanguage(bookDoc.metadata.language);
         book.primaryLanguage = book.primaryLanguage ?? primaryLanguage;
         book.metadata = book.metadata ?? bookDoc.metadata;
+        // TODO: uncomment this when we can ensure metaHash is correctly generated for all books
+        // book.metaHash = book.metaHash ?? getMetadataHash(bookDoc.metadata);
+        book.metaHash = getMetadataHash(bookDoc.metadata);
+
+        const isFixedLayout = FIXED_LAYOUT_FORMATS.has(book.format);
         useBookDataStore.setState((state) => ({
           booksData: {
             ...state.booksData,
-            [id]: { id, book, file, config, bookDoc },
+            [id]: { id, book, file, config, bookDoc, isFixedLayout },
           },
         }));
       }
@@ -181,6 +190,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
             progress: null,
             ribbonVisible: false,
             ttsEnabled: false,
+            syncing: false,
             gridInsets: null,
             viewSettings: { ...globalViewSettings, ...configViewSettings },
           },
@@ -202,6 +212,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
             progress: null,
             ribbonVisible: false,
             ttsEnabled: false,
+            syncing: false,
             gridInsets: null,
             viewSettings: null,
           },
@@ -211,6 +222,7 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
   },
   getViewSettings: (key: string) => get().viewStates[key]?.viewSettings || null,
   setViewSettings: (key: string, viewSettings: ViewSettings) => {
+    if (!key) return;
     const id = key.split('-')[0]!;
     const bookData = useBookDataStore.getState().booksData[id];
     const viewState = get().viewStates[key];
@@ -256,7 +268,8 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
       const viewState = state.viewStates[key];
       if (!viewState || !bookData) return state;
 
-      const progress: [number, number] = [(pageinfo.next ?? pageinfo.current) + 1, pageinfo.total];
+      const pagePressInfo = bookData.isFixedLayout ? section : pageinfo;
+      const progress: [number, number] = [pagePressInfo.current + 1, pagePressInfo.total];
 
       // Update library book progress
       const { library, setLibrary } = useLibraryStore.getState();
@@ -275,10 +288,9 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
       const oldConfig = bookData.config;
       const newConfig = {
         ...bookData.config,
-        updatedAt: Date.now(),
         progress,
         location,
-      };
+      } as BookConfig;
 
       useBookDataStore.setState((state) => ({
         booksData: {
@@ -328,6 +340,17 @@ export const useReaderStore = create<ReaderStore>((set, get) => ({
         [key]: {
           ...state.viewStates[key]!,
           ttsEnabled: enabled,
+        },
+      },
+    })),
+
+  setIsSyncing: (key: string, syncing: boolean) =>
+    set((state) => ({
+      viewStates: {
+        ...state.viewStates,
+        [key]: {
+          ...state.viewStates[key]!,
+          syncing,
         },
       },
     })),

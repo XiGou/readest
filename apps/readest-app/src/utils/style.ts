@@ -30,10 +30,10 @@ const getFontStyles = (
   const lastSerifFonts = ['Georgia', 'Times New Roman'];
   const serifFonts = [
     serif,
+    ...(defaultCJKFont !== serif ? [defaultCJKFont] : []),
     ...SERIF_FONTS.filter(
       (font) => font !== serif && font !== defaultCJKFont && !lastSerifFonts.includes(font),
     ),
-    ...(defaultCJKFont !== serif ? [defaultCJKFont] : []),
     ...CJK_SERIF_FONTS.filter((font) => font !== serif && font !== defaultCJKFont),
     ...lastSerifFonts.filter(
       (font) => SERIF_FONTS.includes(font) && !lastSerifFonts.includes(defaultCJKFont),
@@ -42,24 +42,35 @@ const getFontStyles = (
   ];
   const sansSerifFonts = [
     sansSerif,
-    ...SANS_SERIF_FONTS.filter((font) => font !== sansSerif && font !== defaultCJKFont),
     ...(defaultCJKFont !== sansSerif ? [defaultCJKFont] : []),
+    ...SANS_SERIF_FONTS.filter((font) => font !== sansSerif && font !== defaultCJKFont),
     ...CJK_SANS_SERIF_FONTS.filter((font) => font !== sansSerif && font !== defaultCJKFont),
     ...FALLBACK_FONTS,
   ];
   const monospaceFonts = [monospace, ...MONOSPACE_FONTS.filter((font) => font !== monospace)];
+  const defaultFontFamily = defaultFont.toLowerCase() === 'serif' ? '--serif' : '--sans-serif';
   const fontStyles = `
     html {
       --serif: ${serifFonts.map((font) => `"${font}"`).join(', ')}, serif;
       --sans-serif: ${sansSerifFonts.map((font) => `"${font}"`).join(', ')}, sans-serif;
       --monospace: ${monospaceFonts.map((font) => `"${font}"`).join(', ')}, monospace;
+      --font-size: ${fontSize}px;
+      --min-font-size: ${minFontSize}px;
+      --font-weight: ${fontWeight};
     }
     html, body {
-      font-family: var(${defaultFont.toLowerCase() === 'serif' ? '--serif' : '--sans-serif'}) ${overrideFont ? '!important' : ''};
       font-size: ${fontSize}px !important;
       font-weight: ${fontWeight};
       -webkit-text-size-adjust: none;
       text-size-adjust: none;
+    }
+    /* lower specificity than ebook built-in font styles */
+    html {
+      font-family: var(${defaultFontFamily}) ${overrideFont ? '!important' : ''};
+    }
+    /* higher specificity than ebook built-in font styles */
+    html body {
+      ${overrideFont ? `font-family: var(${defaultFontFamily}) !important;` : ''}
     }
     font[size="1"] {
       font-size: ${minFontSize}px;
@@ -100,10 +111,12 @@ const getColorStyles = (
   overrideColor: boolean,
   invertImgColorInDark: boolean,
   themeCode: ThemeCode,
+  backgroundTextureId: string,
 ) => {
   const { bg, fg, primary, isDarkMode } = themeCode;
   const colorStyles = `
     html {
+      --bg-texture-id: ${backgroundTextureId};
       --theme-bg-color: ${bg};
       --theme-fg-color: ${fg};
       --theme-primary-color: ${primary};
@@ -119,9 +132,10 @@ const getColorStyles = (
       background-color: var(--theme-bg-color, transparent);
       background: var(--background-set, none);
     }
-    section, div, p, font, h1, h2, h3, h4, h5, h6 {
+    section, div, p, font, h1, h2, h3, h4, h5, h6, li, span {
       ${overrideColor ? `background-color: ${bg} !important;` : ''}
       ${overrideColor ? `color: ${fg} !important;` : ''}
+      ${overrideColor ? `border-color: ${fg} !important;` : ''}
     }
     pre, span { /* inline code blocks */
       ${overrideColor ? `background-color: ${bg} !important;` : ''}
@@ -236,9 +250,7 @@ const getLayoutStyles = (
     line-height: ${lineSpacing} ${overrideLayout ? '!important' : ''};
     word-spacing: ${wordSpacing}px ${overrideLayout ? '!important' : ''};
     letter-spacing: ${letterSpacing}px ${overrideLayout ? '!important' : ''};
-    text-indent: ${vertical ? textIndent * 1.2 : textIndent}em ${overrideLayout ? '!important' : ''};
-    ${justify ? `text-align: justify ${overrideLayout ? '!important' : ''};` : ''}
-    ${!justify && overrideLayout ? 'text-align: initial !important;' : ''};
+    text-indent: ${textIndent}em ${overrideLayout ? '!important' : ''};
     -webkit-hyphens: ${hyphenate ? 'auto' : 'manual'};
     hyphens: ${hyphenate ? 'auto' : 'manual'};
     -webkit-hyphenate-limit-before: 3;
@@ -247,6 +259,18 @@ const getLayoutStyles = (
     hanging-punctuation: allow-end last;
     widows: 2;
   }
+  p.aligned-center, blockquote.aligned-center,
+  dd.aligned-center, div.aligned-center {
+    text-align: center ${overrideLayout ? '!important' : ''};
+  }
+  p.aligned-right, blockquote.aligned-right,
+  dd.aligned-right, div.aligned-right {
+    text-align: right ${overrideLayout ? '!important' : ''};
+  }
+  p.aligned-justify, blockquote.aligned-justify,
+  dd.aligned-justify, div.aligned-justify {
+    ${!justify && overrideLayout ? 'text-align: initial !important;' : ''};
+  }
   p:has(> img:only-child), p:has(> span:only-child > img:only-child),
   p:has(> img:not(.has-text-siblings)),
   p:has(> a:first-child + img:last-child) {
@@ -254,6 +278,8 @@ const getLayoutStyles = (
   }
   blockquote[align="center"], div[align="center"],
   p[align="center"], dd[align="center"],
+  p.aligned-center, blockquote.aligned-center,
+  dd.aligned-center, div.aligned-center,
   li p, ol p, ul p {
     text-indent: initial !important;
   }
@@ -309,16 +335,21 @@ const getLayoutStyles = (
   }
 
   /* inline images without dimension */
+  .ie6 img {
+    width: unset;
+    height: unset;
+  }
   sup img {
     height: 1em;
   }
   img.has-text-siblings {
     height: 1em;
-    vertical-align: baseline;
+    vertical-align: middle;
   }
-  .ie6 img {
-    width: auto;
+  :is(div) > img.has-text-siblings[style*="object-fit"] {
+    display: block;
     height: auto;
+    vertical-align: unset;
   }
   .duokan-footnote img:not([class]) {
     width: 0.8em;
@@ -367,6 +398,11 @@ export const getFootnoteStyles = () => `
   div {
     margin: unset !important;
     padding: unset !important;
+  }
+
+  dt {
+    font-weight: bold;
+    line-height: 1.6;
   }
 
   .epubtype-footnote,
@@ -455,20 +491,22 @@ export const getStyles = (viewSettings: ViewSettings, themeCode?: ThemeCode) => 
     viewSettings.textIndent!,
     viewSettings.fullJustification!,
     viewSettings.hyphenation!,
-    viewSettings.zoomLevel! / 100.0,
+    1.0,
     viewSettings.writingMode!,
     viewSettings.vertical!,
   );
   // scale the font size on-the-fly so that we can sync the same font size on different devices
   const isMobile = ['ios', 'android'].includes(getOSPlatform());
   const fontScale = isMobile ? 1.25 : 1;
+  // Only for backward compatibility, new viewSettings.zoomLevel will always be 100 for EPUBs
+  const zoomScale = (viewSettings.zoomLevel || 100) / 100.0;
   const fontStyles = getFontStyles(
     viewSettings.serifFont!,
     viewSettings.sansSerifFont!,
     viewSettings.monospaceFont!,
     viewSettings.defaultFont!,
     viewSettings.defaultCJKFont!,
-    viewSettings.defaultFontSize! * fontScale,
+    viewSettings.defaultFontSize! * fontScale * zoomScale,
     viewSettings.minimumFontSize!,
     viewSettings.fontWeight!,
     viewSettings.overrideFont!,
@@ -477,6 +515,7 @@ export const getStyles = (viewSettings: ViewSettings, themeCode?: ThemeCode) => 
     viewSettings.overrideColor!,
     viewSettings.invertImgColorInDark!,
     themeCode,
+    viewSettings.backgroundTextureId,
   );
   const translationStyles = getTranslationStyles(viewSettings.showTranslateSource!);
   const userStylesheet = viewSettings.userStylesheet!;
@@ -539,6 +578,7 @@ export const transformStylesheet = (vw: number, vh: number, css: string) => {
     .replace(/(\d*\.?\d+)vw/gi, (_, d) => (parseFloat(d) * vw) / 100 + 'px')
     .replace(/(\d*\.?\d+)vh/gi, (_, d) => (parseFloat(d) * vh) / 100 + 'px')
     .replace(/([\s;])font-family\s*:\s*monospace/gi, '$1font-family: var(--monospace)')
+    .replace(/([\s;])font-weight\s*:\s*normal/gi, '$1font-weight: var(--font-weight)')
     .replace(/([\s;])color\s*:\s*black/gi, '$1color: var(--theme-fg-color)')
     .replace(/([\s;])color\s*:\s*#000000/gi, '$1color: var(--theme-fg-color)')
     .replace(/([\s;])color\s*:\s*#000/gi, '$1color: var(--theme-fg-color)')
@@ -555,6 +595,19 @@ export const applyImageStyle = (document: Document) => {
     );
     if (hasTextSiblings) {
       img.classList.add('has-text-siblings');
+    }
+  });
+};
+
+export const keepTextAlignment = (document: Document) => {
+  document.querySelectorAll('div, p, blockquote, dd').forEach((el) => {
+    const computedStyle = window.getComputedStyle(el);
+    if (computedStyle.textAlign === 'center') {
+      el.classList.add('aligned-center');
+    } else if (computedStyle.textAlign === 'right') {
+      el.classList.add('aligned-right');
+    } else if (computedStyle.textAlign === 'justify') {
+      el.classList.add('aligned-justify');
     }
   });
 };

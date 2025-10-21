@@ -12,7 +12,10 @@ export interface Book {
   url?: string;
   // if Book is a transient local book we can load the book content via filePath
   filePath?: string;
+  // Partial md5 hash of the book file, used as the unique identifier
   hash: string;
+  // Metadata md5 hash, used to aggregate different versions of the same book
+  metaHash?: string;
   format: BookFormat;
   title: string; // editable title from metadata
   sourceTitle?: string; // parsed when the book is imported and used to locate the file
@@ -57,6 +60,7 @@ export interface TimeInfo {
 
 export interface BookNote {
   bookHash?: string;
+  metaHash?: string;
   id: string;
   type: BookNoteType;
   cfi: string;
@@ -101,6 +105,7 @@ export interface BookLayout {
   maxInlineSize: number;
   maxBlockSize: number;
   animated: boolean;
+  isEink: boolean;
   writingMode: WritingMode;
   vertical: boolean;
   rtl: boolean;
@@ -122,6 +127,9 @@ export interface BookStyle {
   overrideFont: boolean;
   overrideLayout: boolean;
   overrideColor: boolean;
+  backgroundTextureId: string;
+  backgroundOpacity: number;
+  backgroundSize: string;
   codeHighlighting: boolean;
   codeLanguage: string;
   userStylesheet: string;
@@ -228,6 +236,7 @@ export interface BookSearchResult {
 
 export interface BookConfig {
   bookHash?: string;
+  metaHash?: string;
   progress?: [number, number]; // [current pagenum, total pagenum], 1-based page number
   location?: string; // CFI of the current location
   xpointer?: string; // XPointer of the current location (for Koreader interoperability)
@@ -244,6 +253,7 @@ export interface BookConfig {
 export interface BookDataRecord {
   id: string;
   book_hash: string;
+  meta_hash?: string;
   user_id: string;
   updated_at: number | null;
   deleted_at: number | null;

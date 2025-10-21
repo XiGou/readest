@@ -3,11 +3,11 @@ import React, { useEffect, useRef } from 'react';
 
 interface MenuProps {
   children: React.ReactNode;
-  label: string;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-const Menu: React.FC<MenuProps> = ({ children, className }) => {
+const Menu: React.FC<MenuProps> = ({ children, className, style }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -22,7 +22,12 @@ const Menu: React.FC<MenuProps> = ({ children, className }) => {
   }, []);
 
   return (
-    <div ref={menuRef} role='none' className={clsx(className)}>
+    <div
+      ref={menuRef}
+      role='none'
+      className={clsx('max-h-[calc(100vh-96px)] overflow-y-auto', className)}
+      style={style}
+    >
       {children}
     </div>
   );

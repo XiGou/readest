@@ -3,7 +3,7 @@ import { FixedSizeList as VirtualList } from 'react-window';
 
 import { useOverlayScrollbars } from 'overlayscrollbars-react';
 import 'overlayscrollbars/overlayscrollbars.css';
-import { TOCItem } from '@/libs/document';
+import { SectionItem, TOCItem } from '@/libs/document';
 import { useEnv } from '@/context/EnvContext';
 import { useReaderStore } from '@/store/readerStore';
 import { useSidebarStore } from '@/store/sidebarStore';
@@ -39,7 +39,8 @@ const useFlattenedTOC = (toc: TOCItem[], expandedItems: Set<string>) => {
 const TOCView: React.FC<{
   bookKey: string;
   toc: TOCItem[];
-}> = ({ bookKey, toc }) => {
+  sections?: SectionItem[];
+}> = ({ bookKey, toc, sections }) => {
   const { appService } = useEnv();
   const { getView, getProgress, getViewState, getViewSettings } = useReaderStore();
   const { sideBarBookKey, isSideBarVisible } = useSidebarStore();
@@ -50,6 +51,7 @@ const TOCView: React.FC<{
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [containerHeight, setContainerHeight] = useState(400);
 
+  const hasToggleExpandRef = useRef(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const listOuterRef = useRef<HTMLDivElement | null>(null);
   const vitualListRef = useRef<VirtualList | null>(null);
@@ -132,6 +134,7 @@ const TOCView: React.FC<{
 
   const handleToggleExpand = useCallback((item: TOCItem) => {
     const itemId = getItemIdentifier(item);
+    hasToggleExpandRef.current = true;
     setExpandedItems((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(itemId)) {
@@ -174,16 +177,18 @@ const TOCView: React.FC<{
       const hrefMd5 = activeHref ? getContentMd5(activeHref) : '';
       const activeItem = staticListRef.current?.querySelector(`[data-href="${hrefMd5}"]`);
       if (activeItem) {
-        const rect = activeItem.getBoundingClientRect();
-        const isVisible = rect.top >= 0 && rect.bottom <= window.innerHeight;
+        const container = staticListRef.current.parentElement!;
+        const containerRect = container.getBoundingClientRect();
+        const itemRect = activeItem.getBoundingClientRect();
+        const isVisible =
+          itemRect.top >= containerRect.top && itemRect.bottom <= containerRect.bottom;
         if (!isVisible) {
           (activeItem as HTMLElement).scrollIntoView({ behavior: 'instant', block: 'center' });
         }
         (activeItem as HTMLElement).setAttribute('aria-current', 'page');
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeHref]);
+  }, [flatItems, activeHref]);
 
   const virtualItemSize = useMemo(() => {
     return window.innerWidth >= 640 && !viewSettings?.translationEnabled ? 37 : 57;
@@ -213,13 +218,17 @@ const TOCView: React.FC<{
   }, [toc, progress, viewState, sideBarBookKey, isSideBarVisible, bookKey, expandParents]);
 
   useEffect(() => {
+    if (hasToggleExpandRef.current) {
+      hasToggleExpandRef.current = false;
+      return;
+    }
     if (flatItems.length > 0) {
-      setTimeout(scrollToActiveItem, appService?.isAndroidApp ? 300 : 0);
+      setTimeout(scrollToActiveItem, appService?.isAndroidApp ? 300 : 100);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrollToActiveItem]);
+  }, [progress, scrollToActiveItem]);
 
-  return flatItems.length > 256 ? (
+  return sections && sections.length > 256 ? (
     <div
       className='virtual-list rounded pt-2'
       data-overlayscrollbars-initialize=''

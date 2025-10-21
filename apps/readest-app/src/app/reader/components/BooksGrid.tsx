@@ -10,13 +10,13 @@ import { useBookDataStore } from '@/store/bookDataStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getGridTemplate, getInsetEdges } from '@/utils/grid';
 import { getViewInsets } from '@/utils/insets';
+import SettingsDialog from '@/components/settings/SettingsDialog';
 import FoliateViewer from './FoliateViewer';
 import SectionInfo from './SectionInfo';
 import HeaderBar from './HeaderBar';
-import FooterBar from './FooterBar';
+import FooterBar from './footerbar/FooterBar';
 import ProgressInfoView from './ProgressInfo';
 import Ribbon from './Ribbon';
-import SettingsDialog from './settings/SettingsDialog';
 import Annotator from './annotator/Annotator';
 import FootnotePopup from './FootnotePopup';
 import HintInfo from './HintInfo';
@@ -34,7 +34,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
   const { getProgress, getViewState, getViewSettings } = useReaderStore();
   const { setGridInsets, hoveredBookKey } = useReaderStore();
   const { sideBarBookKey } = useSidebarStore();
-  const { isFontLayoutSettingsDialogOpen, setFontLayoutSettingsDialogOpen } = useSettingsStore();
+  const { isFontLayoutSettingsDialogOpen } = useSettingsStore();
 
   const { safeAreaInsets: screenInsets } = useThemeStore();
   const aspectRatio = window.innerWidth / window.innerHeight;
@@ -78,7 +78,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
         gridTemplateRows: gridTemplate.rows,
       }}
       role='main'
-      aria-label={_('Books Grid')}
+      aria-label={_('Books Content')}
     >
       {bookKeys.map((bookKey, index) => {
         const bookData = getBookData(bookKey);
@@ -120,7 +120,6 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
               isTopLeft={index === 0}
               isHoveredAnim={bookKeys.length > 2}
               onCloseBook={onCloseBook}
-              onSetSettingsDialogOpen={setFontLayoutSettingsDialogOpen}
               gridInsets={gridInsets}
             />
             <FoliateViewer
@@ -185,7 +184,6 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
             {showFooter && (
               <ProgressInfoView
                 bookKey={bookKey}
-                bookFormat={book.format}
                 section={section}
                 pageinfo={pageinfo}
                 timeinfo={timeinfo}
@@ -204,7 +202,7 @@ const BooksGrid: React.FC<BooksGridProps> = ({ bookKeys, onCloseBook }) => {
               isHoveredAnim={false}
               gridInsets={gridInsets}
             />
-            {isFontLayoutSettingsDialogOpen && <SettingsDialog bookKey={bookKey} config={config} />}
+            {isFontLayoutSettingsDialogOpen && <SettingsDialog bookKey={bookKey} />}
           </div>
         );
       })}

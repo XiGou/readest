@@ -5,12 +5,11 @@ import { IoMdCloseCircleOutline } from 'react-icons/io';
 import { useEnv } from '@/context/EnvContext';
 import { useReaderStore } from '@/store/readerStore';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useSettingsStore } from '@/store/settingsStore';
 import { useCustomFontStore } from '@/store/customFontStore';
 import { useFileSelector } from '@/hooks/useFileSelector';
+import { saveViewSettings } from '@/helpers/viewSettings';
 import { CustomFont, mountCustomFont } from '@/styles/fonts';
-import { parseFontInfo } from '@/utils/font';
-import { getFilename } from '@/utils/path';
-import { saveViewSettings } from '../../utils/viewSettingsHelper';
 
 interface CustomFontsProps {
   bookKey: string;
@@ -25,6 +24,7 @@ type FontFamily = {
 const CustomFonts: React.FC<CustomFontsProps> = ({ bookKey, onBack }) => {
   const _ = useTranslation();
   const { appService, envConfig } = useEnv();
+  const { settings } = useSettingsStore();
   const {
     fonts: customFonts,
     addFont,
@@ -34,7 +34,7 @@ const CustomFonts: React.FC<CustomFontsProps> = ({ bookKey, onBack }) => {
     saveCustomFonts,
   } = useCustomFontStore();
   const { getViewSettings } = useReaderStore();
-  const viewSettings = getViewSettings(bookKey)!;
+  const viewSettings = getViewSettings(bookKey) || settings.globalViewSettings;
   const [isDeleteMode, setIsDeleteMode] = useState(false);
 
   const { selectFiles } = useFileSelector(appService, _);
@@ -48,28 +48,11 @@ const CustomFonts: React.FC<CustomFontsProps> = ({ bookKey, onBack }) => {
   const handleImportFont = () => {
     selectFiles({ type: 'fonts', multiple: true }).then(async (result) => {
       if (result.error || result.files.length === 0) return;
-      if (!(await appService!.fs.exists('', 'Fonts'))) {
-        await appService!.fs.createDir('', 'Fonts');
-      }
       for (const selectedFile of result.files) {
-        let fontPath: string;
-        let fontFile: File;
-        if (selectedFile.path) {
-          const filePath = selectedFile.path;
-          const fileobj = await appService!.fs.openFile(filePath, 'None');
-          fontPath = fileobj.name || getFilename(filePath);
-          await appService!.fs.copyFile(filePath, fontPath, 'Fonts');
-          fontFile = await appService!.fs.openFile(fontPath, 'Fonts');
-        } else if (selectedFile.file) {
-          const file = selectedFile.file;
-          fontPath = getFilename(file.name);
-          await appService!.fs.writeFile(fontPath, 'Fonts', file);
-          fontFile = file;
-        } else {
-          continue;
-        }
-        const fontInfo = parseFontInfo(await fontFile.arrayBuffer(), fontPath);
-        const customFont = addFont(fontPath, {
+        const fontInfo = await appService?.importFont(selectedFile.path || selectedFile.file);
+        if (!fontInfo) continue;
+
+        const customFont = addFont(fontInfo.path, {
           name: fontInfo.name,
           family: fontInfo.family,
           style: fontInfo.style,
@@ -90,7 +73,7 @@ const CustomFonts: React.FC<CustomFontsProps> = ({ bookKey, onBack }) => {
     for (const font of family.fonts) {
       if (font) {
         if (removeFont(font.id)) {
-          appService!.fs.removeFile(font.path, 'Fonts');
+          appService?.deleteFont(font);
           saveCustomFonts(envConfig);
           if (getAvailableFonts().length === 0) {
             setIsDeleteMode(false);
@@ -184,7 +167,8 @@ const CustomFonts: React.FC<CustomFontsProps> = ({ bookKey, onBack }) => {
         </div>
 
         {availableFamilies.map((family) => (
-          <button
+          <div
+            role='none'
             key={family.name}
             className={clsx(
               'card h-12 border shadow-sm',
@@ -215,7 +199,7 @@ const CustomFonts: React.FC<CustomFontsProps> = ({ bookKey, onBack }) => {
                 </button>
               )}
             </div>
-          </button>
+          </div>
         ))}
       </div>
 

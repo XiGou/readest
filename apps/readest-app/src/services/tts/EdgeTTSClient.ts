@@ -54,9 +54,11 @@ export class EdgeTTSClient implements TTSClient {
   getVoiceIdFromLang = async (lang: string) => {
     const preferredVoiceId = TTSUtils.getPreferredVoice(this.name, lang);
     const preferredVoice = this.#voices.find((v) => v.id === preferredVoiceId);
-    const defaultVoice = preferredVoice
-      ? preferredVoice
-      : (await this.getVoices(lang))[0]?.voices[0] || null;
+    if (preferredVoice) return preferredVoice.id;
+
+    const availableVoices = (await this.getVoices(lang))[0]?.voices || [];
+    let defaultVoice: TTSVoice | null = availableVoices[0] || null;
+    if (defaultVoice?.id === 'en-US-AnaNeural') defaultVoice = null; // avoid using AnaNeural as default
     return defaultVoice?.id || this.#currentVoiceId || 'en-US-AriaNeural';
   };
 
@@ -67,12 +69,13 @@ export class EdgeTTSClient implements TTSClient {
       // preload the first 2 marks immediately and the rest in the background
       const maxImmediate = 2;
       for (let i = 0; i < Math.min(maxImmediate, marks.length); i++) {
+        if (signal.aborted) break;
         const mark = marks[i]!;
         const { language: voiceLang } = mark;
         const voiceId = await this.getVoiceIdFromLang(voiceLang);
         this.#currentVoiceId = voiceId;
         await this.#edgeTTS
-          .createAudio(this.getPayload(voiceLang, mark.text, voiceId))
+          .createAudioUrl(this.getPayload(voiceLang, mark.text, voiceId))
           .catch((err) => {
             console.warn('Error preloading mark', i, err);
           });
@@ -82,9 +85,10 @@ export class EdgeTTSClient implements TTSClient {
           for (let i = maxImmediate; i < marks.length; i++) {
             const mark = marks[i]!;
             try {
+              if (signal.aborted) break;
               const { language: voiceLang } = mark;
               const voiceId = await this.getVoiceIdFromLang(voiceLang);
-              await this.#edgeTTS.createAudio(this.getPayload(voiceLang, mark.text, voiceId));
+              await this.#edgeTTS.createAudioUrl(this.getPayload(voiceLang, mark.text, voiceId));
             } catch (err) {
               console.warn('Error preloading mark (bg)', i, err);
             }
@@ -102,23 +106,27 @@ export class EdgeTTSClient implements TTSClient {
 
     await this.stopInternal();
     // Reuse the same Audio element inside the ssml session
-    this.#audioElement = new Audio();
+    if (!this.#audioElement) {
+      this.#audioElement = new Audio();
+    }
     const audio = this.#audioElement;
     audio.setAttribute('x-webkit-airplay', 'deny');
     audio.preload = 'auto';
 
     for (const mark of marks) {
+      this.controller?.dispatchSpeakMark(mark);
       let abortHandler: null | (() => void) = null;
       try {
         const { language: voiceLang } = mark;
         const voiceId = await this.getVoiceIdFromLang(voiceLang);
         this.#speakingLang = voiceLang;
-        const blob = await this.#edgeTTS.createAudio(
+        const audioUrl = await this.#edgeTTS.createAudioUrl(
           this.getPayload(voiceLang, mark.text, voiceId),
         );
-        audio.src = URL.createObjectURL(blob);
-
-        this.controller?.dispatchSpeakMark(mark);
+        if (signal.aborted) {
+          yield { code: 'error', message: 'Aborted' } as TTSMessageEvent;
+          break;
+        }
 
         yield {
           code: 'boundary',
@@ -130,11 +138,7 @@ export class EdgeTTSClient implements TTSClient {
           const cleanUp = () => {
             audio.onended = null;
             audio.onerror = null;
-            audio.pause();
-            if (audio.src) {
-              URL.revokeObjectURL(audio.src);
-              audio.removeAttribute('src');
-            }
+            audio.src = '';
           };
           abortHandler = () => {
             cleanUp();
@@ -156,6 +160,7 @@ export class EdgeTTSClient implements TTSClient {
             resolve({ code: 'error', message: 'Audio playback error' });
           };
           this.#isPlaying = true;
+          audio.src = audioUrl;
           audio.play().catch((err) => {
             cleanUp();
             console.error('Failed to play audio:', err);
@@ -229,11 +234,7 @@ export class EdgeTTSClient implements TTSClient {
       if (this.#audioElement?.onended) {
         this.#audioElement.onended(new Event('stopped'));
       }
-      if (this.#audioElement.src?.startsWith('blob:')) {
-        URL.revokeObjectURL(this.#audioElement.src);
-      }
       this.#audioElement.src = '';
-      this.#audioElement = null;
     }
   }
 

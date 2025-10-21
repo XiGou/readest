@@ -5,11 +5,11 @@ import { PageInfo, TimeInfo } from '@/types/book';
 import { useEnv } from '@/context/EnvContext';
 import { useReaderStore } from '@/store/readerStore';
 import { useTranslation } from '@/hooks/useTranslation';
-import { formatReadingProgress } from '@/utils/progress';
+import { useBookDataStore } from '@/store/bookDataStore';
+import { formatNumber, formatProgress } from '@/utils/progress';
 
 interface PageInfoProps {
   bookKey: string;
-  bookFormat: string;
   section?: PageInfo;
   pageinfo?: PageInfo;
   timeinfo?: TimeInfo;
@@ -20,7 +20,6 @@ interface PageInfoProps {
 
 const ProgressInfoView: React.FC<PageInfoProps> = ({
   bookKey,
-  bookFormat,
   section,
   pageinfo,
   timeinfo,
@@ -30,8 +29,10 @@ const ProgressInfoView: React.FC<PageInfoProps> = ({
 }) => {
   const _ = useTranslation();
   const { appService } = useEnv();
+  const { getBookData } = useBookDataStore();
   const { getView, getViewSettings } = useReaderStore();
   const view = getView(bookKey);
+  const bookData = getBookData(bookKey);
   const viewSettings = getViewSettings(bookKey)!;
 
   const showDoubleBorder = viewSettings.vertical && viewSettings.doubleBorder;
@@ -39,23 +40,34 @@ const ProgressInfoView: React.FC<PageInfoProps> = ({
   const isVertical = viewSettings.vertical;
   const { progressStyle: readingProgressStyle } = viewSettings;
 
-  const formatTemplate =
+  const template =
     readingProgressStyle === 'fraction'
       ? isVertical
         ? '{current} · {total}'
         : '{current} / {total}'
       : '{percent}%';
 
-  const progressInfo = ['PDF', 'CBZ'].includes(bookFormat)
-    ? formatReadingProgress(section?.current, section?.total, formatTemplate)
-    : formatReadingProgress(pageinfo?.current, pageinfo?.total, formatTemplate);
+  const lang = localStorage?.getItem('i18nextLng') || '';
+  const localize = isVertical && lang.toLowerCase().startsWith('zh');
+  const progress = bookData?.isFixedLayout ? section : pageinfo;
+  const progressInfo = formatProgress(progress?.current, progress?.total, template, localize, lang);
 
   const timeLeft = timeinfo
-    ? _('{{time}} min left in chapter', { time: Math.round(timeinfo.section) })
+    ? _('{{time}} min left in chapter', {
+        time: formatNumber(Math.round(timeinfo.section), localize, lang),
+      })
     : '';
   const { page = 0, pages = 0 } = view?.renderer || {};
   const pageLeft =
-    pages - 1 > page ? _('{{count}} pages left in chapter', { count: pages - 1 - page }) : '';
+    pages - 1 > page
+      ? localize
+        ? _('{{number}} pages left in chapter', {
+            number: formatNumber(pages - page - 1, localize, lang),
+          })
+        : _('{{count}} pages left in chapter', {
+            count: pages - page - 1,
+          })
+      : '';
 
   return (
     <div
@@ -65,8 +77,18 @@ const ProgressInfoView: React.FC<PageInfoProps> = ({
         isVertical ? 'writing-vertical-rl' : 'w-full',
         isScrolled && !isVertical && 'bg-base-100',
       )}
-      role='group'
-      aria-label={_('Progress Information')}
+      aria-label={[
+        progress
+          ? _('On {{current}} of {{total}} page', {
+              current: progress.current + 1,
+              total: progress.total,
+            })
+          : '',
+        timeLeft,
+        pageLeft,
+      ]
+        .filter(Boolean)
+        .join(', ')}
       style={
         isVertical
           ? {
@@ -85,8 +107,9 @@ const ProgressInfoView: React.FC<PageInfoProps> = ({
       }
     >
       <div
+        aria-hidden='true'
         className={clsx(
-          'flex items-center justify-center',
+          'flex items-center justify-between',
           isVertical ? 'h-full' : 'h-[52px] w-full',
         )}
       >
@@ -95,7 +118,11 @@ const ProgressInfoView: React.FC<PageInfoProps> = ({
         ) : viewSettings.showRemainingPages ? (
           <span className='text-start'>{pageLeft}</span>
         ) : null}
-        {viewSettings.showProgressInfo && <span className='ms-auto text-end'>{progressInfo}</span>}
+        {viewSettings.showProgressInfo && (
+          <span className={clsx('text-end', isVertical ? 'mt-auto' : 'ms-auto')}>
+            {progressInfo}
+          </span>
+        )}
       </div>
     </div>
   );

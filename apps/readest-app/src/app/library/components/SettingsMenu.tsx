@@ -1,12 +1,11 @@
 import clsx from 'clsx';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { PiUserCircle } from 'react-icons/pi';
-import { PiUserCircleCheck } from 'react-icons/pi';
+import { PiUserCircle, PiUserCircleCheck, PiGear } from 'react-icons/pi';
+import { PiSun, PiMoon } from 'react-icons/pi';
 import { TbSunMoon } from 'react-icons/tb';
-import { BiMoon, BiSun } from 'react-icons/bi';
 
-import { setAboutDialogVisible } from '@/components/AboutWindow';
+import { invoke, PermissionState } from '@tauri-apps/api/core';
 import { isTauriAppPlatform, isWebAppPlatform } from '@/services/environment';
 import { DOWNLOAD_READEST_URL } from '@/services/constants';
 import { useAuth } from '@/context/AuthContext';
@@ -19,6 +18,8 @@ import { useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { navigateToLogin, navigateToProfile } from '@/utils/nav';
 import { tauriHandleSetAlwaysOnTop, tauriHandleToggleFullScreen } from '@/utils/window';
 import { optInTelemetry, optOutTelemetry } from '@/utils/telemetry';
+import { setAboutDialogVisible } from '@/components/AboutWindow';
+import { setMigrateDataDirDialogVisible } from '@/app/library/components/MigrateDataWindow';
 import UserAvatar from '@/components/UserAvatar';
 import MenuItem from '@/components/MenuItem';
 import Quota from '@/components/Quota';
@@ -26,6 +27,10 @@ import Menu from '@/components/Menu';
 
 interface SettingsMenuProps {
   setIsDropdownOpen?: (isOpen: boolean) => void;
+}
+
+interface Permissions {
+  postNotification: PermissionState;
 }
 
 const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
@@ -36,6 +41,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
   const { userPlan, quotas } = useQuotaStats(true);
   const { themeMode, setThemeMode } = useThemeStore();
   const { settings, setSettings, saveSettings } = useSettingsStore();
+  const { setFontLayoutSettingsDialogOpen } = useSettingsStore();
   const [isAutoUpload, setIsAutoUpload] = useState(settings.autoUpload);
   const [isAutoCheckUpdates, setIsAutoCheckUpdates] = useState(settings.autoCheckUpdates);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(settings.alwaysOnTop);
@@ -46,6 +52,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
     settings.autoImportBooksOnOpen,
   );
   const [isTelemetryEnabled, setIsTelemetryEnabled] = useState(settings.telemetryEnabled);
+  const [alwaysInForeground, setAlwaysInForeground] = useState(settings.alwaysInForeground);
   const iconSize = useResponsiveSize(16);
 
   const showAboutReadest = () => {
@@ -162,6 +169,35 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
     setIsDropdownOpen?.(false);
   };
 
+  const handleSetRootDir = () => {
+    setMigrateDataDirDialogVisible(true);
+    setIsDropdownOpen?.(false);
+  };
+
+  const openSettingsDialog = () => {
+    setIsDropdownOpen?.(false);
+    setFontLayoutSettingsDialogOpen(true);
+  };
+
+  const toggleAlwaysInForeground = async () => {
+    const requestAlwaysInForeground = !settings.alwaysInForeground;
+
+    if (requestAlwaysInForeground) {
+      let permission = await invoke<Permissions>('plugin:native-tts|checkPermissions');
+      if (permission.postNotification !== 'granted') {
+        permission = await invoke<Permissions>('plugin:native-tts|requestPermissions', {
+          permissions: ['postNotification'],
+        });
+      }
+      if (permission.postNotification !== 'granted') return;
+    }
+
+    settings.alwaysInForeground = requestAlwaysInForeground;
+    setSettings(settings);
+    saveSettings(envConfig, settings);
+    setAlwaysInForeground(settings.alwaysInForeground);
+  };
+
   const avatarUrl = user?.user_metadata?.['picture'] || user?.user_metadata?.['avatar_url'];
   const userFullName = user?.user_metadata?.['full_name'];
   const userDisplayName = userFullName ? userFullName.split(' ')[0] : null;
@@ -174,7 +210,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
 
   return (
     <Menu
-      label={_('Settings Menu')}
       className={clsx(
         'settings-menu dropdown-content no-triangle border-base-100',
         'z-20 mt-2 max-w-[90vw] shadow-2xl',
@@ -233,7 +268,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
           onClick={toggleAutoCheckUpdates}
         />
       )}
-      <hr className='border-base-200 my-1' />
+      <hr aria-hidden='true' className='border-base-200 my-1' />
       {appService?.hasWindow && (
         <MenuItem
           label={_('Open Book in New Window')}
@@ -257,13 +292,31 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
         toggled={isScreenWakeLock}
         onClick={toggleScreenWakeLock}
       />
+      {appService?.isAndroidApp && (
+        <MenuItem
+          label={_(_('Background Read Aloud'))}
+          toggled={alwaysInForeground}
+          onClick={toggleAlwaysInForeground}
+        />
+      )}
       <MenuItem label={_('Reload Page')} onClick={handleReloadPage} />
       <MenuItem
         label={themeModeLabel}
-        Icon={themeMode === 'dark' ? BiMoon : themeMode === 'light' ? BiSun : TbSunMoon}
+        Icon={themeMode === 'dark' ? PiMoon : themeMode === 'light' ? PiSun : TbSunMoon}
         onClick={cycleThemeMode}
       />
-      <hr className='border-base-200 my-1' />
+      <MenuItem label={_('Settings')} Icon={PiGear} onClick={openSettingsDialog} />
+      {appService?.canCustomizeRootDir && (
+        <>
+          <hr aria-hidden='true' className='border-base-200 my-1' />
+          <MenuItem label={_('Advanced Settings')}>
+            <ul className='flex flex-col'>
+              <MenuItem label={_('Change Data Location')} noIcon onClick={handleSetRootDir} />
+            </ul>
+          </MenuItem>
+        </>
+      )}
+      <hr aria-hidden='true' className='border-base-200 my-1' />
       {user && userPlan === 'free' && !appService?.isIOSApp && (
         <MenuItem label={_('Upgrade to Readest Premium')} onClick={handleUpgrade} />
       )}

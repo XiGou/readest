@@ -16,35 +16,34 @@ import { useAuth } from '@/context/AuthContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useReaderStore } from '@/store/readerStore';
 import { useBookDataStore } from '@/store/bookDataStore';
+import { useSettingsStore } from '@/store/settingsStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { getStyles } from '@/utils/style';
 import { navigateToLogin } from '@/utils/nav';
 import { eventDispatcher } from '@/utils/event';
 import { getMaxInlineSize } from '@/utils/config';
+import { saveViewSettings } from '@/helpers/viewSettings';
 import { tauriHandleToggleFullScreen } from '@/utils/window';
-import { saveViewSettings } from '../utils/viewSettingsHelper';
 import MenuItem from '@/components/MenuItem';
+import Menu from '@/components/Menu';
 
 interface ViewMenuProps {
   bookKey: string;
   setIsDropdownOpen?: (open: boolean) => void;
-  onSetSettingsDialogOpen: (open: boolean) => void;
 }
 
-const ViewMenu: React.FC<ViewMenuProps> = ({
-  bookKey,
-  setIsDropdownOpen,
-  onSetSettingsDialogOpen,
-}) => {
+const ViewMenu: React.FC<ViewMenuProps> = ({ bookKey, setIsDropdownOpen }) => {
   const _ = useTranslation();
   const router = useRouter();
   const { user } = useAuth();
   const { envConfig, appService } = useEnv();
   const { getConfig, getBookData } = useBookDataStore();
-  const { getView, getViewSettings, setViewSettings } = useReaderStore();
+  const { setFontLayoutSettingsDialogOpen } = useSettingsStore();
+  const { getView, getViewSettings, getViewState, setViewSettings } = useReaderStore();
   const config = getConfig(bookKey)!;
   const bookData = getBookData(bookKey)!;
   const viewSettings = getViewSettings(bookKey)!;
+  const viewState = getViewState(bookKey);
 
   const { themeMode, isDarkMode, setThemeMode } = useThemeStore();
   const [isScrolledMode, setScrolledMode] = useState(viewSettings!.scrolled);
@@ -63,7 +62,7 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
 
   const openFontLayoutMenu = () => {
     setIsDropdownOpen?.(false);
-    onSetSettingsDialogOpen(true);
+    setFontLayoutSettingsDialogOpen(true);
   };
 
   const cycleThemeMode = () => {
@@ -145,7 +144,7 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
   const lastSyncTime = Math.max(config?.lastSyncedAtConfig || 0, config?.lastSyncedAtNotes || 0);
 
   return (
-    <div
+    <Menu
       className={clsx(
         'view-menu dropdown-content dropdown-right no-triangle z-20 mt-1 border',
         'bgcolor-base-200 border-base-200 shadow-2xl',
@@ -155,86 +154,101 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
         marginRight: window.innerWidth < 640 ? '-36px' : '0px',
       }}
     >
-      <div className={clsx('flex items-center justify-between rounded-md')}>
-        <button
-          onClick={zoomOut}
-          className={clsx(
-            'hover:bg-base-300 text-base-content rounded-full p-2',
-            zoomLevel <= MIN_ZOOM_LEVEL && 'btn-disabled text-gray-400',
-          )}
-        >
-          <MdZoomOut />
-        </button>
-        <button
-          className={clsx(
-            'hover:bg-base-300 text-base-content h-8 min-h-8 w-[50%] rounded-md p-1 text-center',
-          )}
-          onClick={resetZoom}
-        >
-          {zoomLevel}%
-        </button>
-        <button
-          onClick={zoomIn}
-          className={clsx(
-            'hover:bg-base-300 text-base-content rounded-full p-2',
-            zoomLevel >= MAX_ZOOM_LEVEL && 'btn-disabled text-gray-400',
-          )}
-        >
-          <MdZoomIn />
-        </button>
-      </div>
-
       {bookData.bookDoc?.rendition?.layout === 'pre-paginated' && (
         <>
-          <div className={clsx('my-2 flex items-center justify-between rounded-md')}>
+          <div
+            title={_('Zoom Level')}
+            className={clsx('flex items-center justify-between rounded-md')}
+          >
             <button
-              onClick={setSpreadMode.bind(null, 'none')}
+              title={_('Zoom Out')}
+              onClick={zoomOut}
               className={clsx(
                 'hover:bg-base-300 text-base-content rounded-full p-2',
-                spreadMode === 'none' && 'bg-base-300/75',
+                zoomLevel <= MIN_ZOOM_LEVEL && 'btn-disabled text-gray-400',
               )}
             >
-              <TbColumns1 />
+              <MdZoomOut />
             </button>
             <button
-              onClick={setSpreadMode.bind(null, 'auto')}
+              title={_('Reset Zoom')}
               className={clsx(
-                'hover:bg-base-300 text-base-content rounded-full p-2',
-                spreadMode === 'auto' && 'bg-base-300/75',
+                'hover:bg-base-300 text-base-content h-8 min-h-8 w-[50%] rounded-md p-1 text-center',
               )}
+              onClick={resetZoom}
             >
-              <TbColumns2 />
-            </button>
-            <div className='bg-base-300 mx-2 h-6 w-[1px]' />
-            <button
-              onClick={setZoomMode.bind(null, 'fit-page')}
-              className={clsx(
-                'hover:bg-base-300 text-base-content rounded-full p-2',
-                zoomMode === 'fit-page' && 'bg-base-300/75',
-              )}
-            >
-              <IoMdExpand />
+              {zoomLevel}%
             </button>
             <button
-              onClick={setZoomMode.bind(null, 'fit-width')}
+              title={_('Zoom In')}
+              onClick={zoomIn}
               className={clsx(
                 'hover:bg-base-300 text-base-content rounded-full p-2',
-                zoomMode === 'fit-width' && 'bg-base-300/75',
+                zoomLevel >= MAX_ZOOM_LEVEL && 'btn-disabled text-gray-400',
               )}
             >
-              <TbArrowAutofitWidth />
+              <MdZoomIn />
             </button>
           </div>
 
-          <MenuItem
-            label={_('Separate Cover Page')}
-            Icon={keepCoverSpread ? MdCheck : undefined}
-            onClick={() => setKeepCoverSpread(!keepCoverSpread)}
-            disabled={spreadMode === 'none'}
-          />
+          <>
+            <div
+              title={_('Zoom Mode')}
+              className={clsx('my-2 flex items-center justify-between rounded-md')}
+            >
+              <button
+                title={_('Single Page')}
+                onClick={setSpreadMode.bind(null, 'none')}
+                className={clsx(
+                  'hover:bg-base-300 text-base-content rounded-full p-2',
+                  spreadMode === 'none' && 'bg-base-300/75',
+                )}
+              >
+                <TbColumns1 />
+              </button>
+              <button
+                title={_('Auto Spread')}
+                onClick={setSpreadMode.bind(null, 'auto')}
+                className={clsx(
+                  'hover:bg-base-300 text-base-content rounded-full p-2',
+                  spreadMode === 'auto' && 'bg-base-300/75',
+                )}
+              >
+                <TbColumns2 />
+              </button>
+              <div className='bg-base-300 mx-2 h-6 w-[1px]' />
+              <button
+                title={_('Fit Page')}
+                onClick={setZoomMode.bind(null, 'fit-page')}
+                className={clsx(
+                  'hover:bg-base-300 text-base-content rounded-full p-2',
+                  zoomMode === 'fit-page' && 'bg-base-300/75',
+                )}
+              >
+                <IoMdExpand />
+              </button>
+              <button
+                title={_('Fit Width')}
+                onClick={setZoomMode.bind(null, 'fit-width')}
+                className={clsx(
+                  'hover:bg-base-300 text-base-content rounded-full p-2',
+                  zoomMode === 'fit-width' && 'bg-base-300/75',
+                )}
+              >
+                <TbArrowAutofitWidth />
+              </button>
+            </div>
+
+            <MenuItem
+              label={_('Separate Cover Page')}
+              Icon={keepCoverSpread ? MdCheck : undefined}
+              onClick={() => setKeepCoverSpread(!keepCoverSpread)}
+              disabled={spreadMode === 'none'}
+            />
+          </>
+          <hr aria-hidden='true' className='border-base-300 my-1' />
         </>
       )}
-      <hr className='border-base-300 my-1' />
 
       <MenuItem label={_('Font & Layout')} shortcut='Shift+F' onClick={openFontLayoutMenu} />
 
@@ -246,7 +260,7 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
         disabled={bookData.bookDoc?.rendition?.layout === 'pre-paginated'}
       />
 
-      <hr className='border-base-300 my-1' />
+      <hr aria-hidden='true' className='border-base-300 my-1' />
 
       <MenuItem
         label={
@@ -259,10 +273,11 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
               : _('Never synced')
         }
         Icon={user ? MdSync : MdSyncProblem}
+        iconClassName={user && viewState?.syncing ? 'animate-reverse-spin' : ''}
         onClick={handleSync}
       />
 
-      <hr className='border-base-300 my-1' />
+      <hr aria-hidden='true' className='border-base-300 my-1' />
 
       {appService?.hasWindow && <MenuItem label={_('Fullscreen')} onClick={handleFullScreen} />}
       <MenuItem
@@ -282,7 +297,7 @@ const ViewMenu: React.FC<ViewMenuProps> = ({
         Icon={invertImgColorInDark ? MdCheck : undefined}
         onClick={() => setInvertImgColorInDark(!invertImgColorInDark)}
       />
-    </div>
+    </Menu>
   );
 };
 

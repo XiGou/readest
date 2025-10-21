@@ -20,6 +20,11 @@ Default permissions for the plugin
 - `allow-iap-restore-purchases`
 - `allow-get-system-color-scheme`
 - `allow-get-safe-area-insets`
+- `allow-get-screen-brightness`
+- `allow-set-screen-brightness`
+- `allow-request-manage-storage-permission`
+- `allow-checkPermissions`
+- `allow-requestPermissions`
 
 ## Permission Table
 
@@ -85,6 +90,32 @@ Denies the auth_with_safari command without any pre-configured scope.
 <tr>
 <td>
 
+`native-bridge:allow-checkPermissions`
+
+</td>
+<td>
+
+Enables the checkPermissions command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-checkPermissions`
+
+</td>
+<td>
+
+Denies the checkPermissions command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `native-bridge:allow-copy-uri-to-path`
 
 </td>
@@ -130,6 +161,32 @@ Enables the get_safe_area_insets command without any pre-configured scope.
 <td>
 
 Denies the get_safe_area_insets command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:allow-get-screen-brightness`
+
+</td>
+<td>
+
+Enables the get_screen_brightness command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-get-screen-brightness`
+
+</td>
+<td>
+
+Denies the get_screen_brightness command without any pre-configured scope.
 
 </td>
 </tr>
@@ -390,6 +447,84 @@ Enables the lock_screen_orientation command without any pre-configured scope.
 <td>
 
 Denies the lock_screen_orientation command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:allow-requestPermissions`
+
+</td>
+<td>
+
+Enables the requestPermissions command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-requestPermissions`
+
+</td>
+<td>
+
+Denies the requestPermissions command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:allow-request-manage-storage-permission`
+
+</td>
+<td>
+
+Enables the request_manage_storage_permission command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-request-manage-storage-permission`
+
+</td>
+<td>
+
+Denies the request_manage_storage_permission command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:allow-set-screen-brightness`
+
+</td>
+<td>
+
+Enables the set_screen_brightness command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`native-bridge:deny-set-screen-brightness`
+
+</td>
+<td>
+
+Denies the set_screen_brightness command without any pre-configured scope.
 
 </td>
 </tr>

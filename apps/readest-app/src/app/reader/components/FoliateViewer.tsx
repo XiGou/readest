@@ -15,14 +15,17 @@ import { usePagination } from '../hooks/usePagination';
 import { useFoliateEvents } from '../hooks/useFoliateEvents';
 import { useProgressSync } from '../hooks/useProgressSync';
 import { useProgressAutoSave } from '../hooks/useProgressAutoSave';
+import { useBackgroundTexture } from '@/hooks/useBackgroundTexture';
 import { useAutoFocus } from '@/hooks/useAutoFocus';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useEinkMode } from '@/hooks/useEinkMode';
 import { useKOSync } from '../hooks/useKOSync';
 import {
   applyFixedlayoutStyles,
   applyImageStyle,
   applyTranslationStyle,
   getStyles,
+  keepTextAlignment,
   transformStylesheet,
 } from '@/utils/style';
 import { mountAdditionalFonts, mountCustomFont } from '@/styles/fonts';
@@ -42,6 +45,7 @@ import { getMaxInlineSize } from '@/utils/config';
 import { getDirFromUILanguage } from '@/utils/rtl';
 import { isCJKLang } from '@/utils/lang';
 import { isTauriAppPlatform } from '@/services/environment';
+import { TransformContext } from '@/services/transformers/types';
 import { transformContent } from '@/services/transformService';
 import { lockScreenOrientation } from '@/utils/bridge';
 import { useTextTranslation } from '../hooks/useTextTranslation';
@@ -73,6 +77,8 @@ const FoliateViewer: React.FC<{
   const { getViewState, getViewSettings, setViewSettings } = useReaderStore();
   const { getParallels } = useParallelViewStore();
   const { getBookData } = useBookDataStore();
+  const { applyBackgroundTexture } = useBackgroundTexture();
+  const { applyEinkMode } = useEinkMode();
   const viewState = getViewState(bookKey);
   const viewSettings = getViewSettings(bookKey);
 
@@ -116,15 +122,17 @@ const FoliateViewer: React.FC<{
       detail.data = Promise.resolve(detail.data)
         .then((data) => {
           const viewSettings = getViewSettings(bookKey);
+          const bookData = getBookData(bookKey);
           if (viewSettings && detail.type === 'text/css')
             return transformStylesheet(width, height, data);
-          if (viewSettings && detail.type === 'application/xhtml+xml') {
+          if (viewSettings && bookData && detail.type === 'application/xhtml+xml') {
             const ctx = {
               bookKey,
               viewSettings,
+              primaryLanguage: bookData.book?.primaryLanguage,
               content: data,
-              transformers: ['punctuation', 'footnote', 'language'],
-            };
+              transformers: ['punctuation', 'footnote', 'whitespace', 'language'],
+            } as TransformContext;
             return Promise.resolve(transformContent(ctx));
           }
           return data;
@@ -145,14 +153,19 @@ const FoliateViewer: React.FC<{
       const writingDir = viewRef.current?.renderer.setStyles && getDirection(detail.doc);
       const viewSettings = getViewSettings(bookKey)!;
       const bookData = getBookData(bookKey)!;
-      viewSettings.vertical =
+
+      const newVertical =
         writingDir?.vertical || viewSettings.writingMode.includes('vertical') || false;
-      viewSettings.rtl =
+      const newRtl =
         writingDir?.rtl ||
         getDirFromUILanguage() === 'rtl' ||
         viewSettings.writingMode.includes('rl') ||
         false;
-      setViewSettings(bookKey, { ...viewSettings });
+      if (viewSettings.vertical !== newVertical || viewSettings.rtl !== newRtl) {
+        viewSettings.vertical = newVertical;
+        viewSettings.rtl = newRtl;
+        setViewSettings(bookKey, { ...viewSettings });
+      }
 
       mountAdditionalFonts(detail.doc, isCJKLang(bookData.book?.primaryLanguage));
 
@@ -166,6 +179,8 @@ const FoliateViewer: React.FC<{
 
       applyImageStyle(detail.doc);
 
+      keepTextAlignment(detail.doc);
+
       removeTabIndex(detail.doc);
 
       // Inline scripts in tauri platforms are not executed by default
@@ -177,6 +192,13 @@ const FoliateViewer: React.FC<{
       if (viewSettings.codeHighlighting) {
         manageSyntaxHighlighting(detail.doc, viewSettings);
       }
+
+      setTimeout(() => {
+        const booknotes = config.booknotes || [];
+        booknotes
+          .filter((item) => !item.deletedAt && item.type === 'annotation' && item.style)
+          .forEach((annotation) => viewRef.current?.addAnnotation(annotation));
+      }, 100);
 
       if (!detail.doc.isEventListenersAdded) {
         // listened events in iframes are posted to the main window
@@ -280,7 +302,7 @@ const FoliateViewer: React.FC<{
       book.transformTarget?.addEventListener('load', (event: Event) => {
         const { detail } = event as CustomEvent;
         if (detail.isScript) {
-          detail.allowScript = viewSettings.allowScript ?? false;
+          detail.allow = viewSettings.allowScript ?? false;
         }
       });
       const viewWidth = appService?.isMobile ? screen.width : window.innerWidth;
@@ -293,6 +315,7 @@ const FoliateViewer: React.FC<{
 
       doubleClickDisabled.current = viewSettings.disableDoubleClick!;
       const animated = viewSettings.animated!;
+      const eink = viewSettings.isEink!;
       const maxColumnCount = viewSettings.maxColumnCount!;
       const maxInlineSize = getMaxInlineSize(viewSettings);
       const maxBlockSize = viewSettings.maxBlockSize!;
@@ -304,6 +327,14 @@ const FoliateViewer: React.FC<{
         view.renderer.setAttribute('animated', '');
       } else {
         view.renderer.removeAttribute('animated');
+      }
+      if (appService?.isAndroidApp) {
+        if (eink) {
+          view.renderer.setAttribute('eink', '');
+        } else {
+          view.renderer.removeAttribute('eink');
+        }
+        applyEinkMode(eink);
       }
       if (bookDoc?.rendition?.layout === 'pre-paginated') {
         view.renderer.setAttribute('zoom', viewSettings.zoomMode);
@@ -387,6 +418,17 @@ const FoliateViewer: React.FC<{
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.customFonts, envConfig]);
+
+  useEffect(() => {
+    if (!viewSettings) return;
+    applyBackgroundTexture(envConfig, viewSettings);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    viewSettings?.backgroundTextureId,
+    viewSettings?.backgroundOpacity,
+    viewSettings?.backgroundSize,
+    applyBackgroundTexture,
+  ]);
 
   useEffect(() => {
     if (viewRef.current && viewRef.current.renderer) {

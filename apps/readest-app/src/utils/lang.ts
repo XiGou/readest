@@ -23,6 +23,7 @@ export const normalizeToFullLang = (langCode: string): string => {
     ko: 'ko-KR',
     pt: 'pt-PT',
     ar: 'ar-SA',
+    fa: 'fa-IR',
     nl: 'nl-NL',
     pl: 'pl-PL',
     tr: 'tr-TR',
@@ -30,7 +31,7 @@ export const normalizeToFullLang = (langCode: string): string => {
     ru: 'ru-RU',
     uk: 'uk-UA',
     th: 'th-TH',
-    no: 'no-NO',
+    nb: 'nb-NO',
     sv: 'sv-SE',
     fi: 'fi-FI',
     da: 'da-DK',
@@ -89,6 +90,7 @@ export const isSameLang = (lang1?: string | null, lang2?: string | null): boolea
 export const isValidLang = (lang?: string) => {
   if (!lang) return false;
   if (typeof lang !== 'string') return false;
+  if (['und', 'mul', 'mis', 'zxx'].includes(lang)) return false;
   const code = normalizedLangCode(lang);
   return iso6392.some((l) => l.iso6391 === code || l.iso6392B === code);
 };

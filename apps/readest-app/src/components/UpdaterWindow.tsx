@@ -115,8 +115,10 @@ export const UpdaterContent = ({
         const platformKey = OS_ARCH === 'aarch64' ? 'android-arm64' : 'android-universal';
         const arch = OS_ARCH === 'aarch64' ? 'arm64' : 'universal';
         const downloadUrl = data.platforms[platformKey]?.url as string;
-        const cachePrefix = await appService.fs.getPrefix('Cache');
-        const apkFilePath = `${cachePrefix}/Readest_${data.version}_${arch}.apk`;
+        const apkFilePath = await appService.resolveFilePath(
+          `Readest_${data.version}_${arch}.apk`,
+          'Cache',
+        );
         setUpdate({
           currentVersion,
           version: data.version,
@@ -400,7 +402,7 @@ export const UpdaterContent = ({
         </div>
         <div className='text-base-content text-sm'>
           <h3 className='mb-2 font-bold'>{_('Changelog')}</h3>
-          <div className='bg-base-300 mb-4 rounded-lg px-4 pb-2 pt-4'>
+          <div className='bg-base-200 mb-4 rounded-lg px-4 pb-2 pt-4'>
             {changelogs.length > 0 ? (
               changelogs.map((entry: Changelog) => (
                 <div key={entry.version} className='mb-4'>

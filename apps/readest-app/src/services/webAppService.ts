@@ -1,20 +1,27 @@
-import { Book } from '@/types/book';
-import { FileSystem, BaseDir, AppPlatform } from '@/types/system';
-import { getCoverFilename } from '@/utils/book';
+import { FileSystem, BaseDir, AppPlatform, ResolvedPath, FileItem } from '@/types/system';
 import { getOSPlatform, isValidURL } from '@/utils/misc';
 import { RemoteFile } from '@/utils/file';
 import { isPWA } from './environment';
-import { BaseAppService, ResolvedPath } from './appService';
-import { LOCAL_BOOKS_SUBDIR, LOCAL_FONTS_SUBDIR } from './constants';
+import { BaseAppService } from './appService';
+import {
+  DATA_SUBDIR,
+  LOCAL_BOOKS_SUBDIR,
+  LOCAL_FONTS_SUBDIR,
+  LOCAL_IMAGES_SUBDIR,
+} from './constants';
 
 const basePrefix = async () => '';
 
 const resolvePath = (path: string, base: BaseDir): ResolvedPath => {
   switch (base) {
+    case 'Data':
+      return { baseDir: 0, basePrefix, fp: `${DATA_SUBDIR}/${path}`, base };
     case 'Books':
       return { baseDir: 0, basePrefix, fp: `${LOCAL_BOOKS_SUBDIR}/${path}`, base };
     case 'Fonts':
       return { baseDir: 0, basePrefix, fp: `${LOCAL_FONTS_SUBDIR}/${path}`, base };
+    case 'Images':
+      return { baseDir: 0, basePrefix, fp: `${LOCAL_IMAGES_SUBDIR}/${path}`, base };
     case 'None':
       return { baseDir: 0, basePrefix, fp: path, base };
     default:
@@ -42,6 +49,13 @@ async function openIndexedDB(): Promise<IDBDatabase> {
 }
 
 const indexedDBFileSystem: FileSystem = {
+  resolvePath,
+  async getPrefix(base: BaseDir) {
+    const { basePrefix, fp } = this.resolvePath('', base);
+    const basePath = await basePrefix();
+    const prefix = fp ? (basePath ? `${basePath}/${fp}` : fp) : basePath;
+    return prefix.replace(/\/+$/, '');
+  },
   getURL(path: string) {
     if (isValidURL(path)) {
       return path;
@@ -66,7 +80,7 @@ const indexedDBFileSystem: FileSystem = {
     }
   },
   async copyFile(srcPath: string, dstPath: string, base: BaseDir) {
-    const { fp } = resolvePath(dstPath, base);
+    const { fp } = this.resolvePath(dstPath, base);
     const db = await openIndexedDB();
 
     return new Promise<void>((resolve, reject) => {
@@ -88,7 +102,7 @@ const indexedDBFileSystem: FileSystem = {
     });
   },
   async readFile(path: string, base: BaseDir, mode: 'text' | 'binary') {
-    const { fp } = resolvePath(path, base);
+    const { fp } = this.resolvePath(path, base);
     const db = await openIndexedDB();
 
     return new Promise<string | ArrayBuffer>((resolve, reject) => {
@@ -121,7 +135,7 @@ const indexedDBFileSystem: FileSystem = {
     });
   },
   async writeFile(path: string, base: BaseDir, content: string | ArrayBuffer | File) {
-    const { fp } = resolvePath(path, base);
+    const { fp } = this.resolvePath(path, base);
     const db = await openIndexedDB();
 
     if (content instanceof File) {
@@ -138,7 +152,7 @@ const indexedDBFileSystem: FileSystem = {
     });
   },
   async removeFile(path: string, base: BaseDir) {
-    const { fp } = resolvePath(path, base);
+    const { fp } = this.resolvePath(path, base);
     const db = await openIndexedDB();
 
     return new Promise<void>((resolve, reject) => {
@@ -158,20 +172,30 @@ const indexedDBFileSystem: FileSystem = {
     // Directories are virtual in IndexedDB; no-op
   },
   async readDir(path: string, base: BaseDir) {
-    const { fp } = resolvePath(path, base);
+    const { fp } = this.resolvePath(path, base);
     const db = await openIndexedDB();
 
-    return new Promise<{ path: string; isDir: boolean }[]>((resolve, reject) => {
+    return new Promise<FileItem[]>((resolve, reject) => {
       const transaction = db.transaction('files', 'readonly');
       const store = transaction.objectStore('files');
       const request = store.getAll();
 
       request.onsuccess = () => {
-        const files = request.result as { path: string }[];
+        const files = request.result as { path: string; content: string | ArrayBuffer | Blob }[];
         resolve(
           files
             .filter((file) => file.path.startsWith(fp))
-            .map((file) => ({ path: file.path.slice(fp.length + 1), isDir: false })),
+            .map((file) => ({
+              path: file.path.slice(fp.length + 1),
+              size:
+                file.content instanceof Blob
+                  ? file.content.size
+                  : typeof file.content === 'string'
+                    ? file.content.length
+                    : file.content instanceof ArrayBuffer
+                      ? file.content.byteLength
+                      : 0,
+            })),
         );
       };
 
@@ -179,7 +203,7 @@ const indexedDBFileSystem: FileSystem = {
     });
   },
   async exists(path: string, base: BaseDir) {
-    const { fp } = resolvePath(path, base);
+    const { fp } = this.resolvePath(path, base);
     const db = await openIndexedDB();
 
     return new Promise<boolean>((resolve, reject) => {
@@ -191,11 +215,6 @@ const indexedDBFileSystem: FileSystem = {
       request.onerror = () => reject(request.error);
     });
   },
-  async getPrefix(base: BaseDir) {
-    const { basePrefix, fp } = resolvePath('', base);
-    const basePath = await basePrefix();
-    return fp ? `${basePath}/${fp}` : basePath;
-  },
 };
 
 export class WebAppService extends BaseAppService {
@@ -204,8 +223,17 @@ export class WebAppService extends BaseAppService {
   override appPlatform = 'web' as AppPlatform;
   override hasSafeAreaInset = isPWA();
 
+  override async init() {
+    await this.loadSettings();
+    await this.prepareBooksDir();
+  }
+
   override resolvePath(fp: string, base: BaseDir): ResolvedPath {
-    return resolvePath(fp, base);
+    return this.fs.resolvePath(fp, base);
+  }
+
+  async setCustomRootDir() {
+    // No-op in web environment
   }
 
   async selectDirectory(): Promise<string> {
@@ -215,12 +243,4 @@ export class WebAppService extends BaseAppService {
   async selectFiles(): Promise<string[]> {
     throw new Error('selectFiles is not supported in browser');
   }
-
-  getCoverImageUrl = (book: Book): string => {
-    return this.fs.getURL(`${LOCAL_BOOKS_SUBDIR}/${getCoverFilename(book)}`);
-  };
-
-  getCoverImageBlobUrl = async (book: Book): Promise<string> => {
-    return this.fs.getBlobURL(`${LOCAL_BOOKS_SUBDIR}/${getCoverFilename(book)}`, 'None');
-  };
 }

@@ -4,6 +4,7 @@ import { Insets } from '@/types/misc';
 import { useEnv } from '@/context/EnvContext';
 import { useThemeStore } from '@/store/themeStore';
 import { useReaderStore } from '@/store/readerStore';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface SectionInfoProps {
   bookKey: string;
@@ -26,6 +27,7 @@ const SectionInfo: React.FC<SectionInfoProps> = ({
   contentInsets,
   gridInsets,
 }) => {
+  const _ = useTranslation();
   const { appService } = useEnv();
   const { hoveredBookKey } = useReaderStore();
   const { systemUIVisible, statusBarHeight } = useThemeStore();
@@ -48,10 +50,12 @@ const SectionInfo: React.FC<SectionInfoProps> = ({
       <div
         className={clsx(
           'sectioninfo absolute flex items-center overflow-hidden',
+          'text-neutral-content font-sans text-xs font-light',
           isVertical ? 'writing-vertical-rl max-h-[85%]' : 'top-0 h-[44px]',
           isScrolled && !isVertical && 'bg-base-100',
         )}
-        role='contentinfo'
+        role='banner'
+        aria-label={section ? _('Section Title') + `: ${section}` : ''}
         style={
           isVertical
             ? {
@@ -64,14 +68,15 @@ const SectionInfo: React.FC<SectionInfoProps> = ({
               }
             : {
                 top: `${topInset}px`,
-                insetInlineStart: `calc(${horizontalGap / 2}% + ${contentInsets.left}px)`,
-                width: `calc(100% - ${contentInsets.left + contentInsets.right}px)`,
+                paddingInlineStart: `calc(${horizontalGap / 2}% + ${contentInsets.left}px)`,
+                width: '100%',
               }
         }
       >
         <span
+          aria-hidden='true'
           className={clsx(
-            'text-neutral-content text-center font-sans text-xs font-light',
+            'text-center',
             isVertical ? '' : 'line-clamp-1',
             !isVertical && hoveredBookKey == bookKey && 'hidden',
           )}

@@ -26,7 +26,6 @@ interface HeaderBarProps {
   isHoveredAnim: boolean;
   gridInsets: Insets;
   onCloseBook: (bookKey: string) => void;
-  onSetSettingsDialogOpen: (open: boolean) => void;
 }
 
 const HeaderBar: React.FC<HeaderBarProps> = ({
@@ -36,7 +35,6 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
   isHoveredAnim,
   gridInsets,
   onCloseBook,
-  onSetSettingsDialogOpen,
 }) => {
   const _ = useTranslation();
   const { appService } = useEnv();
@@ -108,10 +106,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
     >
       <div
         role='none'
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-        tabIndex={0}
         className={clsx('absolute top-0 z-10 h-11 w-full')}
-        onFocus={() => !appService?.isMobile && setHoveredBookKey(bookKey)}
         onMouseEnter={() => !appService?.isMobile && setHoveredBookKey(bookKey)}
         onTouchStart={() => !appService?.isMobile && setHoveredBookKey(bookKey)}
       />
@@ -144,6 +139,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
             ? `${Math.max(gridInsets.top, statusBarHeight)}px`
             : `${gridInsets.top}px`,
         }}
+        onFocus={() => !appService?.isMobile && setHoveredBookKey(bookKey)}
         onMouseLeave={(e) => {
           if (!appService?.isMobile && isMouseOutsideHeader(e.clientX, e.clientY)) {
             setHoveredBookKey('');
@@ -187,7 +183,7 @@ const HeaderBar: React.FC<HeaderBarProps> = ({
             toggleButton={<PiDotsThreeVerticalBold size={iconSize16} />}
             onToggle={handleToggleDropdown}
           >
-            <ViewMenu bookKey={bookKey} onSetSettingsDialogOpen={onSetSettingsDialogOpen} />
+            <ViewMenu bookKey={bookKey} />
           </Dropdown>
 
           <WindowButtons

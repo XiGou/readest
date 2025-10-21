@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 interface SliderProps {
+  label: string;
   min?: number;
   max?: number;
   step?: number;
@@ -8,6 +9,8 @@ interface SliderProps {
   heightPx?: number;
   minLabel?: string;
   maxLabel?: string;
+  minIcon?: React.ReactNode;
+  maxIcon?: React.ReactNode;
   bubbleElement?: React.ReactNode;
   bubbleLabel?: string;
   className?: string;
@@ -18,6 +21,7 @@ interface SliderProps {
 }
 
 const Slider: React.FC<SliderProps> = ({
+  label,
   min = 0,
   max = 100,
   step = 1,
@@ -25,6 +29,8 @@ const Slider: React.FC<SliderProps> = ({
   heightPx = 40,
   minLabel = '',
   maxLabel = '',
+  minIcon,
+  maxIcon,
   bubbleElement,
   bubbleLabel = '',
   className = '',
@@ -61,10 +67,12 @@ const Slider: React.FC<SliderProps> = ({
   }, [initialValue]);
 
   const percentage = ((value - min) / (max - min)) * 100;
+  const visualPercentage = (percentage / 100) * 95;
 
   return (
     <div
       ref={sliderRef}
+      aria-label={label}
       className={`slider bg-base-200 mx-auto w-full rounded-xl ${className}`}
       dir={isRtl ? 'rtl' : undefined}
     >
@@ -76,22 +84,22 @@ const Slider: React.FC<SliderProps> = ({
           className='bg-base-300 absolute h-full rounded-full'
           style={{
             width:
-              percentage > 0
-                ? `max(calc(${percentage}% + ${heightPx / 2}px), ${heightPx}px)`
+              visualPercentage > 0
+                ? `max(calc(${visualPercentage}% + ${heightPx / 2}px), ${heightPx}px)`
                 : '0px',
             [isRtl ? 'right' : 'left']: 0,
           }}
         ></div>
         {/* Min/Max labels */}
         <div className='absolute inset-0 flex items-center justify-between px-4 text-sm'>
-          <span className={`ml-2 ${minClassName}`}>{minLabel}</span>
-          <span className={`mr-2 ${maxClassName}`}>{maxLabel}</span>
+          {minIcon ? minIcon : <span className={`ml-2 ${minClassName}`}>{minLabel}</span>}
+          {maxIcon ? maxIcon : <span className={`mr-2 ${maxClassName}`}>{maxLabel}</span>}
         </div>
         {/* Thumb bubble */}
         <div
           className='pointer-events-none absolute top-0 z-10'
           style={{
-            [isRtl ? 'right' : 'left']: `max(${heightPx / 2}px, calc(${percentage}%))`,
+            [isRtl ? 'right' : 'left']: `max(${heightPx / 2}px, calc(${visualPercentage}%))`,
             transform: isRtl ? 'translateX(calc(50%))' : 'translateX(calc(-50%))',
             height: '100%',
           }}
@@ -111,6 +119,12 @@ const Slider: React.FC<SliderProps> = ({
           value={value}
           className='absolute inset-0 h-full w-full cursor-pointer opacity-0'
           onChange={handleChange}
+          aria-label={label}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={value}
+          aria-valuetext={`${value}`}
+          aria-orientation='horizontal'
         />
       </div>
     </div>

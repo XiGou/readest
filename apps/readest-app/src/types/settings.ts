@@ -1,5 +1,6 @@
 import { CustomTheme } from '@/styles/themes';
 import { CustomFont } from '@/styles/fonts';
+import { CustomTexture } from '@/styles/textures';
 import { HighlightColor, HighlightStyle, ViewSettings } from './book';
 
 export type ThemeType = 'light' | 'dark' | 'auto';
@@ -21,6 +22,7 @@ export interface ReadSettings {
 
   highlightStyle: HighlightStyle;
   highlightStyles: Record<HighlightStyle, HighlightColor>;
+  customHighlightColors: Record<HighlightColor, string>;
   customThemes: CustomTheme[];
 }
 
@@ -38,6 +40,7 @@ export interface KOSyncSettings {
 export interface SystemSettings {
   version: number;
   localBooksDir: string;
+  customRootDir?: string;
 
   keepLogin: boolean;
   autoUpload: boolean;
@@ -45,7 +48,9 @@ export interface SystemSettings {
   openBookInNewWindow: boolean;
   autoCheckUpdates: boolean;
   screenWakeLock: boolean;
+  screenBrightness: number;
   alwaysShowStatusBar: boolean;
+  alwaysInForeground: boolean;
   openLastBooks: boolean;
   lastOpenBooks: string[];
   autoImportBooksOnOpen: boolean;
@@ -55,6 +60,7 @@ export interface SystemSettings {
   librarySortAscending: boolean;
   libraryCoverFit: LibraryCoverFitType;
   customFonts: CustomFont[];
+  customTextures: CustomTexture[];
 
   kosync: KOSyncSettings;
 
